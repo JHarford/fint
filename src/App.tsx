@@ -2,13 +2,16 @@ import { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { InputTab } from '@/components/input/input-tab'
 import { DashboardTab } from '@/components/dashboard/dashboard-tab'
+import { TransactionsTab } from '@/components/transactions/transactions-tab'
 import { useSources } from '@/hooks/use-sources'
 import { useTransactions } from '@/hooks/use-transactions'
 import { useRecurringItems } from '@/hooks/use-recurring-items'
+import { useFutureObligations } from '@/hooks/use-future-obligations'
+import { useCategoryBudgets } from '@/hooks/use-category-budgets'
 import { useBalances } from '@/hooks/use-balances'
 import { useDebts } from '@/hooks/use-debts'
 import { useAssets } from '@/hooks/use-assets'
-import { LayoutDashboard, Settings } from 'lucide-react'
+import { LayoutDashboard, Settings, ReceiptText } from 'lucide-react'
 
 function getStoredMonths(): number {
   try {
@@ -21,6 +24,8 @@ function App() {
   const { sources, loading: sourcesLoading } = useSources()
   const { transactions, loading: txLoading } = useTransactions()
   const { items: recurringItems, loading: riLoading } = useRecurringItems()
+  const { items: futureObligations, loading: foLoading } = useFutureObligations()
+  const { budgets: categoryBudgets, loading: cbLoading } = useCategoryBudgets()
   const { balances, loading: balLoading } = useBalances()
   const { debts, loading: debtsLoading } = useDebts()
   const { assets, loading: assetsLoading } = useAssets()
@@ -34,7 +39,7 @@ function App() {
     }
   }
 
-  const isLoading = sourcesLoading || txLoading || riLoading || balLoading || debtsLoading || assetsLoading
+  const isLoading = sourcesLoading || txLoading || riLoading || foLoading || cbLoading || balLoading || debtsLoading || assetsLoading
 
   return (
     <div className="min-h-screen bg-background">
@@ -71,6 +76,10 @@ function App() {
               <LayoutDashboard className="w-4 h-4" />
               Dashboard
             </TabsTrigger>
+            <TabsTrigger value="transactions" className="gap-1.5">
+              <ReceiptText className="w-4 h-4" />
+              Transactions
+            </TabsTrigger>
             <TabsTrigger value="input" className="gap-1.5">
               <Settings className="w-4 h-4" />
               Input
@@ -82,11 +91,17 @@ function App() {
               sources={sources}
               transactions={transactions}
               recurringItems={recurringItems}
+              futureObligations={futureObligations}
+              categoryBudgets={categoryBudgets}
               balances={balances}
               debts={debts}
               assets={assets}
               forecastMonths={forecastMonths}
             />
+          </TabsContent>
+
+          <TabsContent value="transactions">
+            <TransactionsTab />
           </TabsContent>
 
           <TabsContent value="input">

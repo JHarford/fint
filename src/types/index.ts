@@ -10,6 +10,8 @@ export interface Source {
   created_at: string
 }
 
+export type Recurrence = 'weekly' | 'monthly' | 'quarterly' | 'annually' | 'one-off'
+
 export interface Transaction {
   id: string
   source_id: string
@@ -17,8 +19,64 @@ export interface Transaction {
   date: string
   account: string
   amount: number
+  category: string
   subcategory: string
   memo: string
+  recurring_item_id: string | null
+  recurrence: Recurrence | null
+  recurrence_group: string
+  recurrence_confidence: '' | 'detected' | 'llm' | 'manual'
+  created_at: string
+}
+
+export interface FutureObligation {
+  id: string
+  name: string
+  amount: number
+  next_date: string
+  frequency: Recurrence
+  category: string
+  subcategory: string
+  is_active: boolean
+  source_id: string | null
+  target_source_id: string | null
+  end_date: string | null
+  annual_increase: number
+  notes: string
+  created_at: string
+}
+
+export interface CategoryBudget {
+  id: string
+  category: string
+  subcategory: string
+  monthly_amount: number
+  notes: string
+  created_at: string
+}
+
+export interface CategoryRule {
+  id: string
+  pattern: string
+  category: string
+  subcategory: string
+  match_count: number
+  source: 'llm' | 'manual'
+  created_at: string
+  updated_at: string
+}
+
+export interface SavingsBucket {
+  id: string
+  name: string
+  target_amount: number | null
+  target_date: string | null
+  monthly_allocation: number
+  current_amount: number
+  source_id: string | null
+  icon: string
+  color: string
+  is_active: boolean
   created_at: string
 }
 
@@ -29,6 +87,7 @@ export interface RecurringItem {
   next_date: string
   frequency: Frequency
   category: string
+  subcategory?: string  // optional; used for per-subcategory budget matching
   is_spread: boolean
   is_active: boolean
   source_id: string | null
@@ -75,6 +134,7 @@ export interface CsvRow {
   date: string
   account: string
   amount: number
+  category: string
   subcategory: string
   memo: string
 }

@@ -1,17 +1,19 @@
-import { SourceManager } from './source-manager'
+import { AccountsManager } from './accounts-manager'
 import { CsvUpload } from './csv-upload'
-import { RecurringItemsManager } from './recurring-items-manager'
-import { BalanceEntry } from './balance-entry'
+import { Categoriser } from './categoriser'
+import { BudgetsManager } from './budgets-manager'
+import { FutureObligationsManager } from './future-obligations-manager'
 import { DebtManager } from './debt-manager'
 import { AssetManager } from './asset-manager'
 
 export function InputTab() {
   return (
     <div className="space-y-6">
-      <SourceManager />
+      <AccountsManager />
       <CsvUpload />
-      <BalanceEntry />
-      <RecurringItemsManager />
+      <Categoriser />
+      <BudgetsManager />
+      <FutureObligationsManager />
       <DebtManager />
       <AssetManager />
     </div>

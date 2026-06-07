@@ -5,15 +5,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Upload, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Upload, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react'
 import { useSources } from '@/hooks/use-sources'
 import { useTransactions } from '@/hooks/use-transactions'
+import { useCategoryRules } from '@/hooks/use-category-rules'
 import { parseCsv, findDuplicates } from '@/lib/csv-parser'
+import { categoriseTransactions, matchRule, runWithConcurrency, LLM_BATCH_SIZE, LLM_CONCURRENCY } from '@/lib/categoriser'
 import type { CsvRow } from '@/types'
 
 export function CsvUpload() {
   const { sources } = useSources()
-  const { getExistingNumbers, bulkInsert } = useTransactions()
+  const { getExistingNumbers, bulkInsert, bulkUpdateCategories } = useTransactions()
+  const { rules, upsert: upsertRule } = useCategoryRules()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [selectedSourceId, setSelectedSourceId] = useState('')
@@ -21,7 +24,8 @@ export function CsvUpload() {
   const [newRows, setNewRows] = useState<CsvRow[]>([])
   const [duplicateCount, setDuplicateCount] = useState(0)
   const [error, setError] = useState('')
-  const [status, setStatus] = useState<'idle' | 'preview' | 'uploading' | 'done'>('idle')
+  const [status, setStatus] = useState<'idle' | 'preview' | 'uploading' | 'categorising' | 'done'>('idle')
+  const [categoriseStats, setCategoriseStats] = useState<{ cached: number; llm: number } | null>(null)
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setError('')
@@ -46,17 +50,63 @@ export function CsvUpload() {
   const handleConfirm = async () => {
     if (newRows.length === 0) return
     setStatus('uploading')
+    setCategoriseStats(null)
     try {
-      await bulkInsert(selectedSourceId, newRows)
+      const inserted = await bulkInsert(selectedSourceId, newRows)
+
+      // Auto-categorise only the rows that came back with no category set
+      const toCategorise = inserted.filter(t => !t.category)
+      if (toCategorise.length > 0) {
+        setStatus('categorising')
+        let cached = 0
+        let llm = 0
+
+        // Rule-cache pass
+        const ruleUpdates: Array<{ id: string; category: string; subcategory: string }> = []
+        const needsLlm = []
+        for (const t of toCategorise) {
+          const m = matchRule(t.memo, rules)
+          if (m) {
+            ruleUpdates.push({ id: t.id, category: m.category, subcategory: m.subcategory })
+            cached++
+          } else {
+            needsLlm.push(t)
+          }
+        }
+        if (ruleUpdates.length > 0) await bulkUpdateCategories(ruleUpdates)
+
+        // LLM pass — concurrent batches. Recurrence tagging happens later via
+        // the "Suggest Recurring" flow in the Transactions tab.
+        const batches: typeof needsLlm[] = []
+        for (let i = 0; i < needsLlm.length; i += LLM_BATCH_SIZE) {
+          batches.push(needsLlm.slice(i, i + LLM_BATCH_SIZE))
+        }
+        await runWithConcurrency(batches, LLM_CONCURRENCY, async (batch) => {
+          const results = await categoriseTransactions(
+            batch.map(t => ({ id: t.id, memo: t.memo, amount: t.amount })),
+          )
+          const updates = results.map(r => ({
+            id: r.id, category: r.category, subcategory: r.subcategory,
+          }))
+          if (updates.length > 0) await bulkUpdateCategories(updates)
+          llm += updates.length
+          for (const r of results) {
+            if (r.pattern && r.pattern.length >= 3) {
+              try { await upsertRule(r.pattern.toUpperCase().trim(), r.category, r.subcategory, 'llm') } catch (e) { console.warn(e) }
+            }
+          }
+        })
+        setCategoriseStats({ cached, llm })
+      }
+
       setStatus('done')
-      // Reset after a moment
       setTimeout(() => {
         setStatus('idle')
         setParsedRows([])
         setNewRows([])
         setDuplicateCount(0)
         if (fileInputRef.current) fileInputRef.current.value = ''
-      }, 2000)
+      }, 5000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to upload')
       setStatus('preview')
@@ -116,10 +166,22 @@ export function CsvUpload() {
           </div>
         )}
 
+        {status === 'categorising' && (
+          <div className="flex items-center gap-2 text-blue-600 text-sm">
+            <Sparkles className="w-4 h-4 animate-pulse" />
+            Auto-categorising {newRows.length} transactions and linking recurring items…
+          </div>
+        )}
+
         {status === 'done' && (
-          <div className="flex items-center gap-2 text-green-600 text-sm">
+          <div className="flex items-center gap-2 text-green-600 text-sm flex-wrap">
             <CheckCircle2 className="w-4 h-4" />
-            Successfully imported {newRows.length} transactions!
+            Imported {newRows.length} transactions
+            {categoriseStats && (
+              <span className="text-muted-foreground">
+                · {categoriseStats.cached} cache hit, {categoriseStats.llm} via LLM. Tag recurring patterns via the Transactions tab.
+              </span>
+            )}
           </div>
         )}
 

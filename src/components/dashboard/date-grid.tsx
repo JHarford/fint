@@ -4,23 +4,52 @@ import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { ChevronDown, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react'
 import { generateDateColumns, calculateColumnData, getLatestBalance } from '@/lib/calculations'
+import { CATEGORIES, CATEGORY_META, UNCATEGORISED } from '@/lib/categories'
+
+// Strip transaction-specific noise and titlecase so similar memos collapse to
+// one readable row (e.g. "Prime Video*NH80G9By4, amzn.uk/bill" -> "Prime Video Amzn Uk").
+function canonicaliseMemo(memo: string): string {
+  if (!memo) return ''
+  const cleaned = memo
+    .replace(/\*\w+/g, ' ')          // drop "*REFCODE" suffixes
+    .replace(/\d{2,}/g, ' ')         // drop long digit runs
+    .replace(/[^A-Za-z\s&]/g, ' ')   // punctuation -> space
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!cleaned) return ''
+  return cleaned
+    .split(' ')
+    .slice(0, 3)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ')
+}
 import { differenceInMonths, differenceInWeeks, differenceInDays } from 'date-fns'
-import type { ViewMode, Transaction, RecurringItem, AccountBalance, Debt, Source } from '@/types'
+import type { ViewMode, Transaction, RecurringItem, AccountBalance, Debt, Source, FutureObligation, CategoryBudget } from '@/types'
 
 interface DateGridProps {
   transactions: Transaction[]
   recurringItems: RecurringItem[]
+  futureObligations: FutureObligation[]
+  categoryBudgets: CategoryBudget[]
   balances: AccountBalance[]
   debts: Debt[]
   sources: Source[]
   forecastMonths: number
 }
 
-export function DateGrid({ transactions, recurringItems, balances, debts, sources, forecastMonths }: DateGridProps) {
+export function DateGrid({ transactions, recurringItems, futureObligations, categoryBudgets, balances, debts, sources, forecastMonths }: DateGridProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('monthly')
   const [debtsOpen, setDebtsOpen] = useState(true)
-  const [purchasesOpen, setPurchasesOpen] = useState(true)
+  const [openCategories, setOpenCategories] = useState<Set<string>>(new Set())
+  const [openSubs, setOpenSubs] = useState<Set<string>>(new Set())
   const todayRef = useRef<HTMLDivElement>(null)
+
+  const toggleCategory = (name: string) => setOpenCategories(prev => {
+    const next = new Set(prev); if (next.has(name)) next.delete(name); else next.add(name); return next
+  })
+  const toggleSub = (key: string) => setOpenSubs(prev => {
+    const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next
+  })
 
   const startingBalance = useMemo(() => {
     let total = 0
@@ -31,62 +60,125 @@ export function DateGrid({ transactions, recurringItems, balances, debts, source
     return total
   }, [sources, balances])
 
-  // History periods (7) + forecast periods based on forecastMonths
+  // History: scroll back as far as real transaction data goes. Convert the gap
+  // between today and the earliest transaction date into the appropriate
+  // period count for the current view mode.
+  const historyPeriods = useMemo(() => {
+    if (transactions.length === 0) return 7
+    let earliest = transactions[0].date
+    for (const t of transactions) if (t.date < earliest) earliest = t.date
+    const days = Math.max(0, Math.ceil((Date.now() - new Date(earliest).getTime()) / 86_400_000))
+    if (viewMode === 'daily') return Math.max(7, days + 1)
+    if (viewMode === 'weekly') return Math.max(4, Math.ceil(days / 7) + 1)
+    return Math.max(3, Math.ceil(days / 30.44) + 1)
+  }, [transactions, viewMode])
+
+  // Total columns = history + forecast
   const numColumns = useMemo(() => {
-    const history = 7
-    if (viewMode === 'daily') return history + forecastMonths * 30
-    if (viewMode === 'weekly') return history + Math.ceil(forecastMonths * 4.33)
-    return history + forecastMonths
-  }, [viewMode, forecastMonths])
+    if (viewMode === 'daily') return historyPeriods + forecastMonths * 30
+    if (viewMode === 'weekly') return historyPeriods + Math.ceil(forecastMonths * 4.33)
+    return historyPeriods + forecastMonths
+  }, [viewMode, forecastMonths, historyPeriods])
 
   const columns = useMemo(
-    () => generateDateColumns(viewMode, numColumns),
-    [viewMode, numColumns]
+    () => generateDateColumns(viewMode, numColumns, historyPeriods),
+    [viewMode, numColumns, historyPeriods]
   )
 
   const columnData = useMemo(
-    () => calculateColumnData(columns, transactions, recurringItems, startingBalance, debts),
-    [columns, transactions, recurringItems, startingBalance, debts]
+    () => calculateColumnData(columns, transactions, startingBalance, { debts, futureObligations, categoryBudgets }),
+    [columns, transactions, startingBalance, debts, futureObligations, categoryBudgets]
   )
 
-  // Build a unified row-based view: one row per unique item name, amounts placed in the right columns
-  const purchaseRows = useMemo(() => {
-    // Map: itemName -> { isProjected, amounts: Map<colIdx, number> }
-    const rowMap = new Map<string, { isProjected: boolean; amounts: Map<number, number> }>()
+  // Build a hierarchical category → subcategory → item tree. Each level holds
+  // a per-column amount sum. Items collapse by recurrence_group when tagged
+  // (so "Prime Video*NH80G9By4" + similar all become one "Prime Video" row).
+  // We also stash contributing transactions per cell for hover tooltips.
+  type CellTx = { date: string; memo: string; amount: number; projected: boolean }
+  const purchaseTree = useMemo(() => {
+    void recurringItems  // legacy prop, no longer used
+    type ItemNode = {
+      name: string
+      amounts: Map<number, number>
+      cells: Map<number, CellTx[]>
+      hasActual: boolean
+      hasProjected: boolean
+    }
+    type SubNode = { name: string; items: Map<string, ItemNode>; amounts: Map<number, number>; cells: Map<number, CellTx[]> }
+    type CatNode = { name: string; subs: Map<string, SubNode>; amounts: Map<number, number>; cells: Map<number, CellTx[]> }
+
+    const tree = new Map<string, CatNode>()
+
+    const bump = (
+      colIdx: number,
+      cat: string,
+      sub: string,
+      item: string,
+      tx: CellTx,
+    ) => {
+      let c = tree.get(cat)
+      if (!c) { c = { name: cat, subs: new Map(), amounts: new Map(), cells: new Map() }; tree.set(cat, c) }
+      c.amounts.set(colIdx, (c.amounts.get(colIdx) ?? 0) + tx.amount)
+      let cArr = c.cells.get(colIdx); if (!cArr) { cArr = []; c.cells.set(colIdx, cArr) }
+      cArr.push(tx)
+
+      let s = c.subs.get(sub)
+      if (!s) { s = { name: sub, items: new Map(), amounts: new Map(), cells: new Map() }; c.subs.set(sub, s) }
+      s.amounts.set(colIdx, (s.amounts.get(colIdx) ?? 0) + tx.amount)
+      let sArr = s.cells.get(colIdx); if (!sArr) { sArr = []; s.cells.set(colIdx, sArr) }
+      sArr.push(tx)
+
+      let i = s.items.get(item)
+      if (!i) { i = { name: item, amounts: new Map(), cells: new Map(), hasActual: false, hasProjected: false }; s.items.set(item, i) }
+      i.amounts.set(colIdx, (i.amounts.get(colIdx) ?? 0) + tx.amount)
+      let iArr = i.cells.get(colIdx); if (!iArr) { iArr = []; i.cells.set(colIdx, iArr) }
+      iArr.push(tx)
+      if (tx.projected) i.hasProjected = true; else i.hasActual = true
+    }
 
     for (let colIdx = 0; colIdx < columnData.length; colIdx++) {
       const data = columnData[colIdx]
-
-      // Actual transactions
-      if (data.transactions.length > 0) {
-        for (const t of data.transactions) {
-          const name = t.memo || t.subcategory || `Txn #${t.number}`
-          if (!rowMap.has(name)) {
-            rowMap.set(name, { isProjected: false, amounts: new Map() })
-          }
-          const row = rowMap.get(name)!
-          row.amounts.set(colIdx, (row.amounts.get(colIdx) || 0) + t.amount)
-        }
+      for (const t of data.transactions) {
+        const cat = t.category || UNCATEGORISED
+        const sub = t.subcategory || '—'
+        const item = t.recurrence_group || t.subcategory || canonicaliseMemo(t.memo) || t.memo || `Txn #${t.number}`
+        bump(colIdx, cat, sub, item, { date: t.date, memo: t.memo, amount: t.amount, projected: false })
       }
-
-      // Projected items
-      if (data.projectedItems.length > 0) {
-        for (const p of data.projectedItems) {
-          if (!rowMap.has(p.name)) {
-            rowMap.set(p.name, { isProjected: true, amounts: new Map() })
-          }
-          const row = rowMap.get(p.name)!
-          row.amounts.set(colIdx, (row.amounts.get(colIdx) || 0) + p.amount)
-        }
+      for (const p of data.projectedItems) {
+        const cat = p.category || UNCATEGORISED
+        const sub = p.subcategory || '—'
+        bump(colIdx, cat, sub, p.name, { date: '(projected)', memo: p.name, amount: p.amount, projected: true })
       }
     }
 
-    return Array.from(rowMap.entries()).map(([name, data]) => ({
-      name,
-      isProjected: data.isProjected,
-      amounts: data.amounts,
-    }))
-  }, [columnData])
+    // Sort: categories by predefined order then alphabetical; subs/items by abs total
+    const categoryOrder = new Map<string, number>(CATEGORIES.map((c, i) => [c, i]))
+    const totalAbs = (m: Map<number, number>) => Array.from(m.values()).reduce((a, b) => a + Math.abs(b), 0)
+    return Array.from(tree.values())
+      .sort((a, b) => {
+        const ao = categoryOrder.get(a.name) ?? 999
+        const bo = categoryOrder.get(b.name) ?? 999
+        if (ao !== bo) return ao - bo
+        return a.name.localeCompare(b.name)
+      })
+      .map(c => ({
+        ...c,
+        subs: Array.from(c.subs.values())
+          .sort((a, b) => totalAbs(b.amounts) - totalAbs(a.amounts))
+          .map(s => ({
+            ...s,
+            items: Array.from(s.items.values()).sort((a, b) => totalAbs(b.amounts) - totalAbs(a.amounts)),
+          })),
+      }))
+  }, [columnData, recurringItems])
+
+  const fmtTooltip = (txs: CellTx[] | undefined): string => {
+    if (!txs || txs.length === 0) return ''
+    const sorted = [...txs].sort((a, b) => a.date.localeCompare(b.date))
+    return sorted
+      .map(t => `${t.date}  ${t.amount < 0 ? '+' : '-'}${formatCurrency(Math.abs(t.amount))}  ${t.memo.replace(/\s+/g, ' ').slice(0, 60)}${t.projected ? '  [projected]' : ''}`)
+      .join('\n')
+  }
 
   useEffect(() => {
     todayRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
@@ -109,15 +201,27 @@ export function DateGrid({ transactions, recurringItems, balances, debts, source
       }
       const monthlyRate = (debt.interest_rate || 0) / 100 / 12
 
-      // Simulate month by month to account for interest
-      const monthlyBalances: number[] = []
-      let bal = debt.current_balance
+      // Forward: today → future. Compound interest, subtract payment, floor at 0.
+      const futureBalances: number[] = []
+      let fBal = debt.current_balance
       for (let m = 0; m <= forecastMonths; m++) {
-        monthlyBalances.push(Math.max(0, bal))
-        if (bal > 0) {
-          bal += bal * monthlyRate
-          bal -= monthlyPayment
+        futureBalances.push(Math.max(0, fBal))
+        if (fBal > 0) {
+          fBal += fBal * monthlyRate
+          fBal -= monthlyPayment
         }
+      }
+
+      // Backward: today → past. Invert the payment cycle so balance grows as we
+      // walk back. previous = (current + payment) / (1 + rate). Stops growing if
+      // we hit a reasonable cap so it doesn't spiral on long horizons.
+      const pastBalances: number[] = [debt.current_balance]
+      let pBal = debt.current_balance
+      const HISTORY_CAP_MONTHS = 60
+      for (let m = 1; m <= HISTORY_CAP_MONTHS; m++) {
+        pBal = (pBal + monthlyPayment) / (1 + monthlyRate)
+        if (pBal < 0) pBal = 0
+        pastBalances.push(pBal)
       }
 
       const today = new Date()
@@ -131,9 +235,12 @@ export function DateGrid({ transactions, recurringItems, balances, debts, source
         } else {
           monthsFromNow = differenceInMonths(colMid, today)
         }
-        if (monthsFromNow < 0) monthsFromNow = 0
-        const idx = Math.min(Math.round(monthsFromNow), monthlyBalances.length - 1)
-        return monthlyBalances[idx]
+        if (monthsFromNow < 0) {
+          const idx = Math.min(Math.round(Math.abs(monthsFromNow)), pastBalances.length - 1)
+          return pastBalances[idx]
+        }
+        const idx = Math.min(Math.round(monthsFromNow), futureBalances.length - 1)
+        return futureBalances[idx]
       })
     })
   }, [debts, recurringItems, columns, viewMode])
@@ -262,45 +369,83 @@ export function DateGrid({ transactions, recurringItems, balances, debts, source
             </Collapsible>
           )}
 
-          {/* Purchases section (collapsible) — one row per unique item */}
-          <Collapsible open={purchasesOpen} onOpenChange={setPurchasesOpen}>
-            <CollapsibleTrigger asChild>
-              <div className="flex border-b cursor-pointer hover:bg-muted/20">
-                <div className="w-48 shrink-0 px-3 py-2 text-sm font-semibold border-r bg-background/60 backdrop-blur-sm flex items-center gap-1 sticky left-0 z-10">
-                  {purchasesOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                  Purchases
-                </div>
-                {columns.map((_, i) => (
-                  <div key={i} className="w-28 shrink-0 border-r" />
-                ))}
-              </div>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              {purchaseRows.map(row => (
-                <div key={row.name} className="flex border-b">
-                  <div className="w-48 shrink-0 px-3 py-1 text-xs border-r pl-8 truncate sticky left-0 z-10 bg-background/60 backdrop-blur-sm" title={row.name}>
-                    {row.isProjected ? (
-                      <span className="text-muted-foreground italic">{row.name}</span>
-                    ) : (
-                      row.name
-                    )}
+          {/* P&L tree: Category → Subcategory → Item */}
+          {purchaseTree.map(cat => {
+            const meta = CATEGORY_META[cat.name as keyof typeof CATEGORY_META] ?? CATEGORY_META[UNCATEGORISED]
+            const Icon = meta.icon
+            const isCatOpen = openCategories.has(cat.name)
+            return (
+              <div key={cat.name}>
+                <div
+                  className="flex border-b cursor-pointer hover:bg-muted/30 bg-muted/10"
+                  onClick={() => toggleCategory(cat.name)}
+                >
+                  <div className="w-48 shrink-0 px-3 py-1.5 text-sm font-semibold border-r bg-background/60 backdrop-blur-sm flex items-center gap-1.5 sticky left-0 z-10">
+                    {isCatOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                    <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
+                    <span>{cat.name}</span>
                   </div>
-                  {columns.map((_, colIdx) => {
-                    const amount = row.amounts.get(colIdx)
+                  {columns.map((_, i) => {
+                    const amt = cat.amounts.get(i)
+                    const tip = fmtTooltip(cat.cells.get(i))
                     return (
-                      <div key={colIdx} className={`w-28 shrink-0 px-2 py-1 text-center text-xs border-r ${colIdx === todayIndex ? 'bg-primary/5' : ''}`}>
-                        {amount != null && (
-                          <span className={amount < 0 ? 'text-green-600' : 'text-red-600'}>
-                            {formatCurrency(amount)}
-                          </span>
+                      <div key={i} title={tip || undefined} className={`w-28 shrink-0 px-2 py-1.5 text-center text-xs font-semibold border-r ${i === todayIndex ? 'bg-primary/5' : ''} ${tip ? 'cursor-help' : ''}`}>
+                        {amt != null && amt !== 0 && (
+                          <span className={amt < 0 ? 'text-green-600' : 'text-red-600'}>{formatCurrency(amt)}</span>
                         )}
                       </div>
                     )
                   })}
                 </div>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
+                {isCatOpen && cat.subs.map(sub => {
+                  const subKey = `${cat.name}|${sub.name}`
+                  const isSubOpen = openSubs.has(subKey)
+                  return (
+                    <div key={subKey}>
+                      <div
+                        className="flex border-b cursor-pointer hover:bg-muted/20"
+                        onClick={() => toggleSub(subKey)}
+                      >
+                        <div className="w-48 shrink-0 px-3 py-1 text-xs border-r bg-background/60 backdrop-blur-sm flex items-center gap-1 pl-8 sticky left-0 z-10">
+                          {isSubOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                          <span className="font-medium text-muted-foreground">{sub.name}</span>
+                        </div>
+                        {columns.map((_, i) => {
+                          const amt = sub.amounts.get(i)
+                          const tip = fmtTooltip(sub.cells.get(i))
+                          return (
+                            <div key={i} title={tip || undefined} className={`w-28 shrink-0 px-2 py-1 text-center text-xs border-r ${i === todayIndex ? 'bg-primary/5' : ''} ${tip ? 'cursor-help' : ''}`}>
+                              {amt != null && amt !== 0 && (
+                                <span className={`${amt < 0 ? 'text-green-600' : 'text-red-600'} opacity-80`}>{formatCurrency(amt)}</span>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                      {isSubOpen && sub.items.map(item => (
+                        <div key={item.name} className="flex border-b">
+                          <div className="w-48 shrink-0 px-3 py-1 text-xs border-r pl-14 truncate sticky left-0 z-10 bg-background/60 backdrop-blur-sm" title={item.name}>
+                            {item.hasActual ? item.name : <span className="text-muted-foreground italic">{item.name}</span>}
+                          </div>
+                          {columns.map((_, i) => {
+                            const amt = item.amounts.get(i)
+                            const tip = fmtTooltip(item.cells.get(i))
+                            return (
+                              <div key={i} title={tip || undefined} className={`w-28 shrink-0 px-2 py-1 text-center text-xs border-r ${i === todayIndex ? 'bg-primary/5' : ''} ${tip ? 'cursor-help' : ''}`}>
+                                {amt != null && amt !== 0 && (
+                                  <span className={amt < 0 ? 'text-green-600' : 'text-red-600'}>{formatCurrency(amt)}</span>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>

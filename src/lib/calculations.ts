@@ -16,7 +16,7 @@ import {
   format,
   differenceInDays,
 } from 'date-fns'
-import type { RecurringItem, Transaction, ViewMode, AccountBalance, Debt, Frequency } from '@/types'
+import type { RecurringItem, Transaction, ViewMode, AccountBalance, Debt, Frequency, FutureObligation, CategoryBudget, Recurrence } from '@/types'
 
 export interface DateColumn {
   label: string
@@ -25,21 +25,29 @@ export interface DateColumn {
   isPast: boolean
 }
 
+export interface ProjectedItem {
+  id: string
+  name: string
+  amount: number
+  category: string
+  subcategory: string
+}
+
 export interface ColumnData {
   cashMovement: number
   runningBalance: number
   movementPercent: number
   transactions: Transaction[]
-  projectedItems: { name: string; amount: number }[]
+  projectedItems: ProjectedItem[]
 }
 
-// Generate date columns based on view mode
-export function generateDateColumns(viewMode: ViewMode, numColumns: number = 30): DateColumn[] {
+// Generate date columns based on view mode.
+// `historyPeriods` controls how far back we render (in periods). Callers can
+// compute it from the earliest transaction date so the grid scrolls back as
+// far as real data exists.
+export function generateDateColumns(viewMode: ViewMode, numColumns: number = 30, historyPeriods: number = 7): DateColumn[] {
   const today = startOfDay(new Date())
   const columns: DateColumn[] = []
-
-  // Start 7 periods before today so we can see recent history
-  const historyPeriods = 7
 
   for (let i = -historyPeriods; i < numColumns - historyPeriods; i++) {
     let start: Date, end: Date, label: string
@@ -69,13 +77,175 @@ export function generateDateColumns(viewMode: ViewMode, numColumns: number = 30)
   return columns
 }
 
+// ---------- DERIVED-FROM-TRANSACTIONS PROJECTIONS ----------
+
+export interface DerivedObligation {
+  group: string                    // recurrence_group, used as both id + name
+  frequency: Recurrence
+  medianAmount: number             // signed (positive = out, negative = in)
+  lastDate: Date
+  category: string
+  subcategory: string
+}
+
+// Build a forecast "spine" from the user's tagged recurring transactions.
+// For each unique recurrence_group, take the most recent N occurrences, compute
+// median amount, last date, and use the tagged frequency. We project from last
+// date forward at that frequency.
+export function deriveObligationsFromTransactions(transactions: Transaction[]): DerivedObligation[] {
+  const byGroup = new Map<string, Transaction[]>()
+  for (const t of transactions) {
+    if (!t.recurrence || !t.recurrence_group || t.recurrence === 'one-off') continue
+    const arr = byGroup.get(t.recurrence_group) ?? []
+    arr.push(t)
+    byGroup.set(t.recurrence_group, arr)
+  }
+
+  const out: DerivedObligation[] = []
+  for (const [group, txs] of byGroup) {
+    const freqCounts = new Map<Recurrence, number>()
+    for (const t of txs) {
+      if (t.recurrence && t.recurrence !== 'one-off') {
+        freqCounts.set(t.recurrence, (freqCounts.get(t.recurrence) ?? 0) + 1)
+      }
+    }
+    const freq = [...freqCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+    if (!freq) continue
+
+    const sorted = [...txs].sort((a, b) => a.date.localeCompare(b.date))
+    const recent = sorted.slice(-3)
+    const amounts = recent.map(t => t.amount).sort((a, b) => a - b)
+    const med = amounts.length % 2 === 0
+      ? (amounts[amounts.length / 2 - 1] + amounts[amounts.length / 2]) / 2
+      : amounts[Math.floor(amounts.length / 2)]
+
+    const categoryCounts = new Map<string, number>()
+    const subCounts = new Map<string, number>()
+    for (const t of sorted) {
+      if (t.category) categoryCounts.set(t.category, (categoryCounts.get(t.category) ?? 0) + 1)
+      if (t.subcategory) subCounts.set(t.subcategory, (subCounts.get(t.subcategory) ?? 0) + 1)
+    }
+
+    out.push({
+      group,
+      frequency: freq,
+      medianAmount: med,
+      lastDate: new Date(sorted[sorted.length - 1].date),
+      category: [...categoryCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '',
+      subcategory: [...subCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '',
+    })
+  }
+  return out
+}
+
+// Project a derived obligation forward into a date range. The next occurrence
+// after lastDate marks the start.
+export function projectDerivedItems(
+  obligations: DerivedObligation[],
+  start: Date,
+  end: Date,
+): ProjectedItem[] {
+  const result: ProjectedItem[] = []
+  for (const o of obligations) {
+    let date = getNextOccurrence(o.lastDate, o.frequency)
+    let safety = 0
+    while (isBefore(date, end) || isWithinInterval(date, { start, end })) {
+      if (safety++ > 400) break
+      if (isWithinInterval(date, { start, end })) {
+        result.push({
+          id: `derived-${o.group}`, name: o.group, amount: o.medianAmount,
+          category: o.category, subcategory: o.subcategory,
+        })
+      }
+      date = getNextOccurrence(date, o.frequency)
+    }
+  }
+  return result
+}
+
+// Project category-budget variable spend into a date range. Treats each budget
+// as a monthly target distributed evenly across days within the period.
+export function projectCategoryBudgets(
+  budgets: CategoryBudget[],
+  start: Date,
+  end: Date,
+): ProjectedItem[] {
+  const periodDays = differenceInDays(end, start) + 1
+  const result: ProjectedItem[] = []
+  for (const b of budgets) {
+    if (b.monthly_amount <= 0) continue
+    const perDay = b.monthly_amount / 30.44
+    const amount = Math.round(perDay * periodDays * 100) / 100
+    if (amount === 0) continue
+    const label = b.subcategory || b.category
+    result.push({
+      id: `budget-${b.id}`, name: label, amount,
+      category: b.category, subcategory: b.subcategory,
+    })
+  }
+  return result
+}
+
+// Project future_obligations (school fees, planned income, etc.). Reuses the
+// non-spread logic from the old recurring-item projector.
+export function projectFutureObligations(
+  obligations: FutureObligation[],
+  start: Date,
+  end: Date,
+): ProjectedItem[] {
+  const result: ProjectedItem[] = []
+  const today = startOfDay(new Date())
+
+  for (const o of obligations) {
+    if (!o.is_active) continue
+    const itemStart = new Date(o.next_date)
+    if (isAfter(itemStart, end)) {
+      if (o.frequency === 'one-off') continue
+    }
+    const endDate = o.end_date ? new Date(o.end_date) : null
+    if (endDate && isAfter(start, endDate)) continue
+
+    const rate = (o.annual_increase || 0) / 100
+    const monthsFromNow = Math.max(0, (start.getTime() - today.getTime()) / (30.44 * 86400000))
+    const effectiveAmount = o.amount * Math.pow(1 + rate, monthsFromNow / 12)
+
+    if (o.frequency === 'one-off') {
+      if (isWithinInterval(itemStart, { start, end })) {
+        result.push({
+          id: `future-${o.id}`, name: o.name, amount: effectiveAmount,
+          category: o.category, subcategory: o.subcategory,
+        })
+      }
+      continue
+    }
+
+    let date = new Date(o.next_date)
+    while (isAfter(date, end)) date = getPreviousOccurrence(date, o.frequency)
+    while (isAfter(date, start)) date = getPreviousOccurrence(date, o.frequency)
+    let safety = 0
+    while (isBefore(date, end) || isWithinInterval(date, { start, end })) {
+      if (safety++ > 400) break
+      if (isWithinInterval(date, { start, end }) && (!endDate || !isAfter(date, endDate))) {
+        result.push({
+          id: `future-${o.id}`, name: o.name, amount: effectiveAmount,
+          category: o.category, subcategory: o.subcategory,
+        })
+      }
+      date = getNextOccurrence(date, o.frequency)
+    }
+  }
+  return result
+}
+
+// ---------- LEGACY: getProjectedItems(RecurringItem[]) — kept for unrefactored callers ----------
+
 // Get all projected recurring items that fall within a date range
 export function getProjectedItems(
   items: RecurringItem[],
   start: Date,
   end: Date
-): { name: string; amount: number }[] {
-  const result: { name: string; amount: number }[] = []
+): ProjectedItem[] {
+  const result: ProjectedItem[] = []
   const periodDays = differenceInDays(end, start) + 1
 
   const today = startOfDay(new Date())
@@ -110,7 +280,7 @@ export function getProjectedItems(
       }
       const spreadAmount = Math.round(amountPerDay * periodDays * 100) / 100
       if (spreadAmount !== 0) {
-        result.push({ name: item.name, amount: spreadAmount })
+        result.push({ id: item.id, name: item.name, amount: spreadAmount, category: item.category, subcategory: item.subcategory ?? '' })
       }
     } else {
       // Non-spread: check if any occurrence falls in the range
@@ -130,7 +300,7 @@ export function getProjectedItems(
         if (isWithinInterval(date, { start, end })) {
           // Check end_date for each occurrence
           if (!endDate || !isAfter(date, endDate)) {
-            result.push({ name: item.name, amount: effectiveAmount })
+            result.push({ id: item.id, name: item.name, amount: effectiveAmount, category: item.category, subcategory: item.subcategory ?? '' })
           }
         }
         date = getNextOccurrence(date, item.frequency)
@@ -183,6 +353,7 @@ function toMonthlyAmount(amount: number, frequency: Frequency): number {
 }
 
 // Build a set of recurring item IDs that are debt payments, with the month they'd be paid off
+// (legacy — kept for backwards-compat with date-grid debt projections code).
 function buildDebtPayoffMap(
   recurringItems: RecurringItem[],
   debts: Debt[],
@@ -208,56 +379,65 @@ function buildDebtPayoffMap(
   }
   return payoffMap
 }
+export { buildDebtPayoffMap }
+void toMonthlyAmount  // retained for the legacy buildDebtPayoffMap helper
 
 // Calculate column data with running balances
 export function calculateColumnData(
   columns: DateColumn[],
   transactions: Transaction[],
-  recurringItems: RecurringItem[],
   startingBalance: number,
-  debts: Debt[] = [],
+  options: {
+    futureObligations?: FutureObligation[]
+    categoryBudgets?: CategoryBudget[]
+    debts?: Debt[]
+  } = {},
 ): ColumnData[] {
   const today = startOfDay(new Date())
+  const futureObligations = options.futureObligations ?? []
+  const categoryBudgets = options.categoryBudgets ?? []
   let runningBalance = startingBalance
   const result: ColumnData[] = []
 
-  // Calculate payoff months for debt-linked payments
-  const payoffMap = buildDebtPayoffMap(recurringItems, debts)
+  // Derive the recurring obligation forecast from tagged transactions
+  const derived = deriveObligationsFromTransactions(transactions)
+  const derivedGroups = new Set(derived.map(d => d.group))
 
   for (const col of columns) {
     const txns = getTransactionsInRange(transactions, col.start, col.end)
-
-    // Past dates: use actual transactions
-    // Future dates: use projected from recurring items
-    const isPastOrCurrent = isBefore(col.start, today) || isWithinInterval(today, { start: col.start, end: col.end })
     const isFuture = isAfter(col.start, today)
 
-    // How many months from now is this column?
-    const colMid = new Date((col.start.getTime() + col.end.getTime()) / 2)
-    const monthsFromNow = Math.max(0, (colMid.getTime() - today.getTime()) / (30.44 * 24 * 60 * 60 * 1000))
-
-    // Filter out recurring items whose linked debt is paid off by this column
-    const activeItems = recurringItems.filter(item => {
-      const payoffMonth = payoffMap.get(item.id)
-      if (payoffMonth !== undefined && monthsFromNow >= payoffMonth) {
-        return false // debt is paid off, stop this payment
-      }
-      return true
-    })
-
     let cashMovement = 0
-    let projectedItems: { name: string; amount: number }[] = []
+    let projectedItems: ProjectedItem[] = []
 
-    if (isPastOrCurrent && txns.length > 0) {
-      // Use actual transaction data
-      cashMovement = txns.reduce((sum, t) => sum + t.amount, 0)
-    }
-
-    if (isFuture || (isPastOrCurrent && txns.length === 0)) {
-      // Use projected recurring items for future or empty past periods
-      projectedItems = getProjectedItems(activeItems, col.start, col.end)
+    if (isFuture) {
+      // Future: derived recurring + future_obligations + category_budgets
+      projectedItems = [
+        ...projectDerivedItems(derived, col.start, col.end),
+        ...projectFutureObligations(futureObligations, col.start, col.end),
+        ...projectCategoryBudgets(categoryBudgets, col.start, col.end),
+      ]
       cashMovement = projectedItems.reduce((sum, item) => sum + item.amount, 0)
+    } else {
+      // Past/current: actuals are the truth. For recurring groups that DIDN'T
+      // realise in this column, project the derived obligation so multi-account
+      // imports don't leave gaps. Future obligations also fill in if their
+      // dates fall here. Budgets are NEVER projected in past — actual
+      // categorised spend is the answer.
+      cashMovement = txns.reduce((sum, t) => sum + t.amount, 0)
+
+      const realisedGroups = new Set(
+        txns.map(t => t.recurrence_group).filter(g => !!g),
+      )
+      const unmatchedDerived = derived.filter(d => !realisedGroups.has(d.group))
+      projectedItems = [
+        ...projectDerivedItems(unmatchedDerived, col.start, col.end),
+        ...projectFutureObligations(futureObligations, col.start, col.end)
+          .filter(p => !realisedGroups.has(p.name)),
+      ]
+      cashMovement += projectedItems.reduce((sum, item) => sum + item.amount, 0)
     }
+    void derivedGroups  // currently unused; reserved for future debt payoff logic
 
     // Cash movement: negative = money in (good), positive = money out (bad)
     // For running balance: subtract expenses, add income
