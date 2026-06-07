@@ -1,7 +1,7 @@
 import { useState, useMemo, useId, useRef, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { CreditCard, Landmark, TrendingDown, TrendingUp, Wallet, EyeOff, Plus, Home, Car, PiggyBank, Package, ChevronDown, ChevronUp } from 'lucide-react'
+import { CreditCard, Landmark, TrendingDown, Wallet, EyeOff, Plus, Home, Car, PiggyBank, Package, ChevronDown, ChevronUp } from 'lucide-react'
 import { Area, AreaChart, ResponsiveContainer, Tooltip } from 'recharts'
 import type { Source, AccountBalance, Debt, RecurringItem, Asset } from '@/types'
 import { getLatestBalance, calculateNetWorth } from '@/lib/calculations'
@@ -142,7 +142,6 @@ function projectNetWorthCurve(
   totalAssets: number,
   debts: Debt[],
   recurringItems: RecurringItem[],
-  baseMonthlyNet: number,
   assetItems: Asset[] = [],
   months: number = 12,
 ): { v: number; month: number; label: string }[] {
@@ -290,10 +289,10 @@ function Sparkline({ data, id, onHover }: SparklineProps) {
             stroke={`url(#stroke-${id})`}
             strokeWidth={1.5}
             fill={`url(#fill-${id})`}
-            dot={({ cx, cy, payload }: { cx: number; cy: number; payload: { v: number } }) => (
+            dot={({ cx, cy, payload }: { cx?: number; cy?: number; payload: { v: number } }) => (
               <circle key={cx} cx={cx} cy={cy} r={1.5} fill={payload.v >= 0 ? '#16a34a' : '#dc2626'} stroke="none" />
             )}
-            activeDot={({ cx, cy, payload }: { cx: number; cy: number; payload: { v: number } }) => (
+            activeDot={({ cx, cy, payload }: { cx?: number; cy?: number; payload: { v: number } }) => (
               <circle key={cx} cx={cx} cy={cy} r={3} fill={payload.v >= 0 ? '#16a34a' : '#dc2626'} stroke="#fff" strokeWidth={1} />
             )}
             isAnimationActive={false}
@@ -341,15 +340,9 @@ export function SummaryCards({ sources, balances, debts, recurringItems, assets:
 
   const getLinkedItem = (id: string | null) => recurringItems.find(i => i.id === id)
 
-  const totalMonthlyNet = useMemo(() => {
-    return recurringItems
-      .filter(i => i.is_active)
-      .reduce((sum, i) => sum - toMonthlyAmount(i), 0)
-  }, [recurringItems])
-
   const netWorthCurve = useMemo(
-    () => projectNetWorthCurve(accountAssets + totalAssetValue, debts, recurringItems, totalMonthlyNet, assetItems, forecastMonths),
-    [accountAssets, totalAssetValue, debts, recurringItems, totalMonthlyNet, assetItems, forecastMonths]
+    () => projectNetWorthCurve(accountAssets + totalAssetValue, debts, recurringItems, assetItems, forecastMonths),
+    [accountAssets, totalAssetValue, debts, recurringItems, assetItems, forecastMonths]
   )
 
   const hideCard = (key: CardKey) => {
