@@ -17,6 +17,15 @@ import { useGoals } from '@/hooks/use-goals'
 import { useGoalEntries } from '@/hooks/use-goal-entries'
 import { CalendarCheck2, LayoutDashboard, Settings, ReceiptText, Target } from 'lucide-react'
 
+// shortLabel is used in the mobile bottom nav where space is tight
+const NAV_ITEMS = [
+  { value: 'today', label: 'Today', shortLabel: 'Today', icon: CalendarCheck2 },
+  { value: 'goals', label: 'Goals', shortLabel: 'Goals', icon: Target },
+  { value: 'dashboard', label: 'Finance', shortLabel: 'Finance', icon: LayoutDashboard },
+  { value: 'transactions', label: 'Transactions', shortLabel: 'Activity', icon: ReceiptText },
+  { value: 'input', label: 'Input', shortLabel: 'Input', icon: Settings },
+]
+
 function getStoredMonths(): number {
   try {
     const v = localStorage.getItem('fint-forecast-months')
@@ -78,29 +87,16 @@ function App() {
         </div>
       </header>
 
-      <main className="max-w-[1600px] mx-auto px-4 py-6">
+      <main className="max-w-[1600px] mx-auto px-4 py-6 pb-24 md:pb-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6">
-            <TabsTrigger value="today" className="gap-1.5">
-              <CalendarCheck2 className="w-4 h-4" />
-              Today
-            </TabsTrigger>
-            <TabsTrigger value="goals" className="gap-1.5">
-              <Target className="w-4 h-4" />
-              Goals
-            </TabsTrigger>
-            <TabsTrigger value="dashboard" className="gap-1.5">
-              <LayoutDashboard className="w-4 h-4" />
-              Finance
-            </TabsTrigger>
-            <TabsTrigger value="transactions" className="gap-1.5">
-              <ReceiptText className="w-4 h-4" />
-              Transactions
-            </TabsTrigger>
-            <TabsTrigger value="input" className="gap-1.5">
-              <Settings className="w-4 h-4" />
-              Input
-            </TabsTrigger>
+          {/* Top tab bar on desktop; mobile uses the bottom nav instead */}
+          <TabsList className="mb-6 hidden md:inline-flex">
+            {NAV_ITEMS.map(({ value, label, icon: Icon }) => (
+              <TabsTrigger key={value} value={value} className="gap-1.5">
+                <Icon className="w-4 h-4" />
+                {label}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
           <TabsContent value="today">
@@ -146,6 +142,28 @@ function App() {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* App-style bottom navigation on mobile */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pb-[env(safe-area-inset-bottom)]">
+        <div className="grid grid-cols-5">
+          {NAV_ITEMS.map(({ value, shortLabel, icon: Icon }) => {
+            const active = activeTab === value
+            return (
+              <button
+                key={value}
+                onClick={() => setActiveTab(value)}
+                className={`flex flex-col items-center gap-1 pt-2 pb-1.5 text-[10px] font-medium transition-colors ${
+                  active ? 'text-primary' : 'text-muted-foreground'
+                }`}
+                aria-current={active ? 'page' : undefined}
+              >
+                <Icon className={`w-5 h-5 ${active ? 'stroke-[2.25]' : ''}`} />
+                {shortLabel}
+              </button>
+            )
+          })}
+        </div>
+      </nav>
     </div>
   )
 }

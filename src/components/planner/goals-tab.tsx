@@ -131,7 +131,7 @@ function GoalCard({ goal, goalEntries, paused = false, onEdit, onTogglePause, on
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="font-medium truncate">{goal.name}</span>
-            <Badge variant="secondary" className="text-[10px] shrink-0">{GOAL_TYPE_LABELS[goal.goal_type]}</Badge>
+            <Badge variant="secondary" className="text-[10px] shrink-0 hidden sm:inline-flex">{GOAL_TYPE_LABELS[goal.goal_type]}</Badge>
           </div>
           <p className="text-xs text-muted-foreground truncate">
             {goal.description || `Since ${format(parseISO(goal.start_date), 'd MMM yyyy')}`}
@@ -180,7 +180,7 @@ function GoalStats({ goal, goalEntries }: { goal: Goal; goalEntries: GoalEntry[]
     const clean = totalDone(goalEntries)
     const slips = slipCount(goalEntries)
     return (
-      <div className="flex gap-6 pl-12">
+      <div className="flex flex-wrap gap-x-6 gap-y-2 sm:pl-12">
         <div className="flex items-center gap-1">
           <Flame className="w-4 h-4 text-orange-500" />
           <Stat label="Current streak" value={`${streak}d`} highlight />
@@ -199,7 +199,7 @@ function GoalStats({ goal, goalEntries }: { goal: Goal; goalEntries: GoalEntry[]
     const days = daysSinceStart(goal)
     const perWeekAvg = days >= 7 ? (total / (days / 7)).toFixed(1) : String(total)
     return (
-      <div className="flex gap-6 pl-12">
+      <div className="flex flex-wrap gap-x-6 gap-y-2 sm:pl-12">
         <Stat label="This week" value={`${week}/${target}`} highlight={week >= target} />
         <Stat label="Total done" value={String(total)} />
         <Stat label="Avg / week" value={perWeekAvg} />
@@ -209,7 +209,7 @@ function GoalStats({ goal, goalEntries }: { goal: Goal; goalEntries: GoalEntry[]
 
   const progress = targetProgress(goal, goalEntries)
   return (
-    <div className="flex gap-6 pl-12">
+    <div className="flex flex-wrap gap-x-6 gap-y-2 sm:pl-12">
       <Stat label="Current" value={`${goal.unit}${progress.current.toLocaleString()}`} highlight />
       {goal.target_value !== null && (
         <>

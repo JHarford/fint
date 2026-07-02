@@ -94,29 +94,32 @@ function GoalRow({ goal, goalEntries, log, removeEntry }: GoalRowProps) {
   }
 
   return (
-    <Card className="py-3 px-4 gap-2">
-      <div className="flex items-center gap-3">
-        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${color.soft}`}>
-          <Icon className={`w-4.5 h-4.5 ${color.text}`} />
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="font-medium truncate">{goal.name}</span>
-            <StatBadge goal={goal} goalEntries={goalEntries} />
+    <Card className="py-3 px-4 gap-2.5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2.5">
+        <div className="flex items-center gap-3 min-w-0 flex-1 basis-52">
+          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${color.soft}`}>
+            <Icon className={`w-4.5 h-4.5 ${color.text}`} />
           </div>
-          {goal.description && (
-            <p className="text-xs text-muted-foreground truncate">{goal.description}</p>
-          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="font-medium truncate">{goal.name}</span>
+              <StatBadge goal={goal} goalEntries={goalEntries} />
+            </div>
+            {goal.description && (
+              <p className="text-xs text-muted-foreground truncate">{goal.description}</p>
+            )}
+          </div>
         </div>
 
-        {goal.goal_type !== 'target' && (
-          <WeekStrip goal={goal} byDate={byDate} onCycle={cycle} />
+        {/* On phones this pair wraps onto its own full-width row: strip left, action right */}
+        {goal.goal_type !== 'target' ? (
+          <div className="flex items-center justify-between gap-3 w-full sm:w-auto">
+            <WeekStrip goal={goal} byDate={byDate} onCycle={cycle} />
+            <CheckButton goal={goal} todayEntry={todayEntry} onCycle={() => cycle(today)} />
+          </div>
+        ) : (
+          <TargetLogger goal={goal} todayEntry={todayEntry} goalEntries={goalEntries} log={log} />
         )}
-
-        {goal.goal_type === 'target'
-          ? <TargetLogger goal={goal} todayEntry={todayEntry} goalEntries={goalEntries} log={log} />
-          : <CheckButton goal={goal} todayEntry={todayEntry} onCycle={() => cycle(today)} />}
       </div>
 
       {goal.goal_type === 'target' && <TargetProgressBar goal={goal} goalEntries={goalEntries} />}
@@ -155,7 +158,7 @@ function WeekStrip({ goal, byDate, onCycle }: {
   const color = goalColor(goal.color)
   const days = lastNDays(7)
   return (
-    <div className="hidden sm:flex items-center gap-1 shrink-0">
+    <div className="flex items-center gap-1.5 sm:gap-1 shrink-0">
       {days.map(date => {
         const entry = byDate.get(date)
         const beforeStart = date < goal.start_date
@@ -168,7 +171,7 @@ function WeekStrip({ goal, byDate, onCycle }: {
             disabled={beforeStart}
             title={`${format(parseISO(date), 'EEE d MMM')}${entry ? (entry.value > 0 ? ' — done' : ' — slipped') : ''}`}
             onClick={() => onCycle(date)}
-            className={`w-3.5 h-3.5 rounded-full transition-colors ${beforeStart ? 'bg-muted/30 cursor-default' : cls}`}
+            className={`w-4 h-4 sm:w-3.5 sm:h-3.5 rounded-full transition-colors ${beforeStart ? 'bg-muted/30 cursor-default' : cls}`}
           />
         )
       })}
@@ -256,7 +259,7 @@ function TargetProgressBar({ goal, goalEntries }: { goal: Goal; goalEntries: Goa
   if (goal.target_value === null) return null
 
   return (
-    <div className="flex items-center gap-3 pl-12">
+    <div className="flex items-center gap-3 sm:pl-12">
       <div className={`flex-1 h-2 rounded-full overflow-hidden ${color.soft}`}>
         <div className={`h-full rounded-full ${color.solid}`} style={{ width: `${progress.pct}%` }} />
       </div>
