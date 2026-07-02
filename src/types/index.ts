@@ -159,6 +159,31 @@ export interface GoalEntry {
   created_at: string
 }
 
+export type CalendarEntryType = 'event' | 'birthday' | 'reminder' | 'task'
+export type ExternalSource = 'user' | 'droplet' | 'ai'
+
+export interface CalendarEntry {
+  id: string
+  title: string
+  date: string
+  entry_type: CalendarEntryType
+  notes: string
+  recurs_annually: boolean
+  is_done: boolean
+  source: ExternalSource
+  created_at: string
+}
+
+export interface CoachMessage {
+  id: string
+  message: string
+  context: string
+  goal_id: string | null
+  source: 'rule' | 'ai' | 'droplet'
+  is_read: boolean
+  created_at: string
+}
+
 // For CSV upload preview
 export interface CsvRow {
   number: string

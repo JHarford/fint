@@ -5,6 +5,7 @@ import { DashboardTab } from '@/components/dashboard/dashboard-tab'
 import { TransactionsTab } from '@/components/transactions/transactions-tab'
 import { TodayTab } from '@/components/planner/today-tab'
 import { GoalsTab } from '@/components/planner/goals-tab'
+import { CalendarTab } from '@/components/planner/calendar-tab'
 import { useSources } from '@/hooks/use-sources'
 import { useTransactions } from '@/hooks/use-transactions'
 import { useRecurringItems } from '@/hooks/use-recurring-items'
@@ -15,12 +16,15 @@ import { useDebts } from '@/hooks/use-debts'
 import { useAssets } from '@/hooks/use-assets'
 import { useGoals } from '@/hooks/use-goals'
 import { useGoalEntries } from '@/hooks/use-goal-entries'
-import { CalendarCheck2, LayoutDashboard, Settings, ReceiptText, Target } from 'lucide-react'
+import { useCalendarEntries } from '@/hooks/use-calendar-entries'
+import { useCoachMessages } from '@/hooks/use-coach-messages'
+import { CalendarCheck2, CalendarDays, LayoutDashboard, Settings, ReceiptText, Target } from 'lucide-react'
 
 // shortLabel is used in the mobile bottom nav where space is tight
 const NAV_ITEMS = [
   { value: 'today', label: 'Today', shortLabel: 'Today', icon: CalendarCheck2 },
   { value: 'goals', label: 'Goals', shortLabel: 'Goals', icon: Target },
+  { value: 'calendar', label: 'Calendar', shortLabel: 'Diary', icon: CalendarDays },
   { value: 'dashboard', label: 'Finance', shortLabel: 'Finance', icon: LayoutDashboard },
   { value: 'transactions', label: 'Transactions', shortLabel: 'Activity', icon: ReceiptText },
   { value: 'input', label: 'Input', shortLabel: 'Input', icon: Settings },
@@ -44,6 +48,8 @@ function App() {
   const { assets, loading: assetsLoading } = useAssets()
   const { goals, loading: goalsLoading, create: createGoal, update: updateGoal, remove: removeGoal } = useGoals()
   const { entries: goalEntries, loading: geLoading, log: logGoalEntry, remove: removeGoalEntry } = useGoalEntries()
+  const { entries: calendarEntries, create: createCalendarEntry, update: updateCalendarEntry, remove: removeCalendarEntry } = useCalendarEntries()
+  const { messages: coachMessages, create: createCoachMessage, markRead: markCoachMessageRead } = useCoachMessages()
   const [forecastMonths, setForecastMonths] = useState(getStoredMonths)
   const [activeTab, setActiveTab] = useState('today')
 
@@ -61,9 +67,9 @@ function App() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight">Fint</h1>
-            <span className="text-xs text-muted-foreground">Personal Planner</span>
+          <div className="flex items-baseline gap-2.5">
+            <h1 className="font-display text-2xl font-semibold text-primary">LifeFlow</h1>
+            <span className="text-xs text-muted-foreground italic font-display hidden sm:inline">one day at a time</span>
           </div>
           <div className="flex items-center gap-3">
             {isLoading && (
@@ -106,6 +112,20 @@ function App() {
               log={logGoalEntry}
               removeEntry={removeGoalEntry}
               onManageGoals={() => setActiveTab('goals')}
+              coachMessages={coachMessages}
+              createCoachMessage={createCoachMessage}
+              markCoachMessageRead={markCoachMessageRead}
+            />
+          </TabsContent>
+
+          <TabsContent value="calendar">
+            <CalendarTab
+              goals={goals}
+              goalEntries={goalEntries}
+              entries={calendarEntries}
+              createEntry={createCalendarEntry}
+              updateEntry={updateCalendarEntry}
+              removeEntry={removeCalendarEntry}
             />
           </TabsContent>
 
@@ -145,7 +165,7 @@ function App() {
 
       {/* App-style bottom navigation on mobile */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pb-[env(safe-area-inset-bottom)]">
-        <div className="grid grid-cols-5">
+        <div className="grid grid-cols-6">
           {NAV_ITEMS.map(({ value, shortLabel, icon: Icon }) => {
             const active = activeTab === value
             return (

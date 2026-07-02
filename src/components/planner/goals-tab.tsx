@@ -51,7 +51,7 @@ export function GoalsTab({ goals, entries, createGoal, updateGoal, removeGoal }:
     <div className="space-y-4 max-w-3xl">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Goals</h2>
+          <h2 className="font-display text-xl font-semibold">Goals</h2>
           <p className="text-sm text-muted-foreground">Everything you're working towards</p>
         </div>
         <Button onClick={openCreate}>

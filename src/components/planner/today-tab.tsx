@@ -4,12 +4,13 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Check, Flame, Pencil, Plus, Trophy, X } from 'lucide-react'
-import type { Goal, GoalEntry } from '@/types'
+import type { CoachMessage, Goal, GoalEntry } from '@/types'
 import {
   currentStreak, entriesForGoal, entryByDate, lastNDays, latestValue,
   targetProgress, thisWeekCount, todayKey,
 } from '@/lib/goal-stats'
 import { GOAL_ICONS, goalColor } from './goal-meta'
+import { CoachCard } from './coach-card'
 
 interface TodayTabProps {
   goals: Goal[]
@@ -17,9 +18,15 @@ interface TodayTabProps {
   log: (goalId: string, date: string, value: number, note?: string) => Promise<void>
   removeEntry: (goalId: string, date: string) => Promise<void>
   onManageGoals: () => void
+  coachMessages: CoachMessage[]
+  createCoachMessage: (m: Omit<CoachMessage, 'id' | 'created_at' | 'is_read'>) => Promise<void>
+  markCoachMessageRead: (id: string) => Promise<void>
 }
 
-export function TodayTab({ goals, entries, log, removeEntry, onManageGoals }: TodayTabProps) {
+export function TodayTab({
+  goals, entries, log, removeEntry, onManageGoals,
+  coachMessages, createCoachMessage, markCoachMessageRead,
+}: TodayTabProps) {
   const activeGoals = goals.filter(g => g.is_active)
   const today = todayKey()
 
@@ -47,13 +54,21 @@ export function TodayTab({ goals, entries, log, removeEntry, onManageGoals }: To
     <div className="space-y-4 max-w-3xl">
       <div className="flex items-baseline justify-between">
         <div>
-          <h2 className="text-lg font-semibold">{format(new Date(), 'EEEE, d MMMM')}</h2>
+          <h2 className="font-display text-xl font-semibold">{format(new Date(), 'EEEE, d MMMM')}</h2>
           <p className="text-sm text-muted-foreground">
             {doneToday} of {activeGoals.length} goals checked in today
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={onManageGoals}>Manage goals</Button>
       </div>
+
+      <CoachCard
+        goals={goals}
+        goalEntries={entries}
+        messages={coachMessages}
+        createMessage={createCoachMessage}
+        markRead={markCoachMessageRead}
+      />
 
       <div className="space-y-3">
         {activeGoals.map(goal => (
