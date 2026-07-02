@@ -3,6 +3,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { InputTab } from '@/components/input/input-tab'
 import { DashboardTab } from '@/components/dashboard/dashboard-tab'
 import { TransactionsTab } from '@/components/transactions/transactions-tab'
+import { TodayTab } from '@/components/planner/today-tab'
+import { GoalsTab } from '@/components/planner/goals-tab'
 import { useSources } from '@/hooks/use-sources'
 import { useTransactions } from '@/hooks/use-transactions'
 import { useRecurringItems } from '@/hooks/use-recurring-items'
@@ -11,7 +13,9 @@ import { useCategoryBudgets } from '@/hooks/use-category-budgets'
 import { useBalances } from '@/hooks/use-balances'
 import { useDebts } from '@/hooks/use-debts'
 import { useAssets } from '@/hooks/use-assets'
-import { LayoutDashboard, Settings, ReceiptText } from 'lucide-react'
+import { useGoals } from '@/hooks/use-goals'
+import { useGoalEntries } from '@/hooks/use-goal-entries'
+import { CalendarCheck2, LayoutDashboard, Settings, ReceiptText, Target } from 'lucide-react'
 
 function getStoredMonths(): number {
   try {
@@ -29,7 +33,10 @@ function App() {
   const { balances, loading: balLoading } = useBalances()
   const { debts, loading: debtsLoading } = useDebts()
   const { assets, loading: assetsLoading } = useAssets()
+  const { goals, loading: goalsLoading, create: createGoal, update: updateGoal, remove: removeGoal } = useGoals()
+  const { entries: goalEntries, loading: geLoading, log: logGoalEntry, remove: removeGoalEntry } = useGoalEntries()
   const [forecastMonths, setForecastMonths] = useState(getStoredMonths)
+  const [activeTab, setActiveTab] = useState('today')
 
   const handleMonthsChange = (val: string) => {
     const n = parseInt(val, 10)
@@ -39,7 +46,7 @@ function App() {
     }
   }
 
-  const isLoading = sourcesLoading || txLoading || riLoading || foLoading || cbLoading || balLoading || debtsLoading || assetsLoading
+  const isLoading = sourcesLoading || txLoading || riLoading || foLoading || cbLoading || balLoading || debtsLoading || assetsLoading || goalsLoading || geLoading
 
   return (
     <div className="min-h-screen bg-background">
@@ -47,34 +54,44 @@ function App() {
         <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold tracking-tight">Fint</h1>
-            <span className="text-xs text-muted-foreground">Personal Finance Dashboard</span>
+            <span className="text-xs text-muted-foreground">Personal Planner</span>
           </div>
           <div className="flex items-center gap-3">
             {isLoading && (
               <span className="text-xs text-muted-foreground animate-pulse">Loading...</span>
             )}
-            <div className="flex items-center gap-1.5 border rounded-md px-2 py-1 bg-muted/50">
-              <label className="text-xs text-muted-foreground whitespace-nowrap">Forecast</label>
-              <input
-                type="number"
-                min={1}
-                max={120}
-                value={forecastMonths}
-                onChange={e => handleMonthsChange(e.target.value)}
-                className="w-12 h-6 text-sm font-medium text-center border rounded bg-background px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              />
-              <span className="text-xs text-muted-foreground">months</span>
-            </div>
+            {activeTab === 'dashboard' && (
+              <div className="flex items-center gap-1.5 border rounded-md px-2 py-1 bg-muted/50">
+                <label className="text-xs text-muted-foreground whitespace-nowrap">Forecast</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={120}
+                  value={forecastMonths}
+                  onChange={e => handleMonthsChange(e.target.value)}
+                  className="w-12 h-6 text-sm font-medium text-center border rounded bg-background px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                <span className="text-xs text-muted-foreground">months</span>
+              </div>
+            )}
           </div>
         </div>
       </header>
 
       <main className="max-w-[1600px] mx-auto px-4 py-6">
-        <Tabs defaultValue="dashboard">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6">
+            <TabsTrigger value="today" className="gap-1.5">
+              <CalendarCheck2 className="w-4 h-4" />
+              Today
+            </TabsTrigger>
+            <TabsTrigger value="goals" className="gap-1.5">
+              <Target className="w-4 h-4" />
+              Goals
+            </TabsTrigger>
             <TabsTrigger value="dashboard" className="gap-1.5">
               <LayoutDashboard className="w-4 h-4" />
-              Dashboard
+              Finance
             </TabsTrigger>
             <TabsTrigger value="transactions" className="gap-1.5">
               <ReceiptText className="w-4 h-4" />
@@ -85,6 +102,26 @@ function App() {
               Input
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="today">
+            <TodayTab
+              goals={goals}
+              entries={goalEntries}
+              log={logGoalEntry}
+              removeEntry={removeGoalEntry}
+              onManageGoals={() => setActiveTab('goals')}
+            />
+          </TabsContent>
+
+          <TabsContent value="goals">
+            <GoalsTab
+              goals={goals}
+              entries={goalEntries}
+              createGoal={createGoal}
+              updateGoal={updateGoal}
+              removeGoal={removeGoal}
+            />
+          </TabsContent>
 
           <TabsContent value="dashboard">
             <DashboardTab

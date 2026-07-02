@@ -128,6 +128,37 @@ export interface Asset {
   created_at: string
 }
 
+export type GoalType = 'abstinence' | 'habit' | 'target'
+
+export interface Goal {
+  id: string
+  name: string
+  description: string
+  goal_type: GoalType
+  icon: string
+  color: string
+  start_date: string
+  frequency_per_week: number | null
+  start_value: number
+  target_value: number | null
+  unit: string
+  target_date: string | null
+  is_active: boolean
+  sort_order: number
+  created_at: string
+}
+
+// One entry per goal per day.
+// abstinence: value 1 = clean day, 0 = slip. habit: value 1 = done. target: value = measured amount.
+export interface GoalEntry {
+  id: string
+  goal_id: string
+  date: string
+  value: number
+  note: string
+  created_at: string
+}
+
 // For CSV upload preview
 export interface CsvRow {
   number: string
