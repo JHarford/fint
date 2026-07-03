@@ -51,6 +51,7 @@ import { useGoalEntries } from '@/hooks/use-goal-entries'
 import { useCalendarEntries } from '@/hooks/use-calendar-entries'
 import { useCoachMessages } from '@/hooks/use-coach-messages'
 import { isSupabaseConfigured } from '@/lib/supabase'
+import { DebugConsole } from '@/components/debug-console'
 import { CalendarCheck2, CalendarDays, LayoutDashboard, Settings, ReceiptText, Target } from 'lucide-react'
 
 // shortLabel is used in the mobile bottom nav where space is tight
@@ -227,6 +228,9 @@ function App() {
           })}
         </div>
       </nav>
+
+      {/* TEMPORARY: on-screen error console for mobile debugging — remove when done */}
+      <DebugConsole />
     </div>
   )
 }

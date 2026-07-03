@@ -47,12 +47,20 @@ const emptyForm = (): GoalFormValues => ({
   weekly_units: null,
 })
 
+function errorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message
+  if (e && typeof e === 'object' && 'message' in e) return String((e as { message: unknown }).message)
+  return String(e)
+}
+
 export function GoalFormDialog({ open, onOpenChange, goal, onSave }: GoalFormDialogProps) {
   const [form, setForm] = useState<GoalFormValues>(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     if (!open) return
+    setError('')
     if (goal) {
       setForm({
         name: goal.name,
@@ -95,6 +103,7 @@ export function GoalFormDialog({ open, onOpenChange, goal, onSave }: GoalFormDia
   const save = async () => {
     if (!form.name.trim()) return
     setSaving(true)
+    setError('')
     try {
       await onSave({
         ...form,
@@ -108,6 +117,9 @@ export function GoalFormDialog({ open, onOpenChange, goal, onSave }: GoalFormDia
         weekly_units: form.goal_type === 'abstinence' ? form.weekly_units : null,
       })
       onOpenChange(false)
+    } catch (e) {
+      console.error('Goal save failed:', e)
+      setError(errorMessage(e))
     } finally {
       setSaving(false)
     }
@@ -271,6 +283,13 @@ export function GoalFormDialog({ open, onOpenChange, goal, onSave }: GoalFormDia
               ))}
             </div>
           </div>
+
+          {error && (
+            <p className="text-xs text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
+              Couldn't save: {error}
+              {error.includes('column') && ' — this usually means a migration in supabase/ hasn\'t been run yet.'}
+            </p>
+          )}
 
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

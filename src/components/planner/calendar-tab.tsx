@@ -319,12 +319,14 @@ function EntryFormDialog({ open, onOpenChange, entry, defaultDate, onSave }: {
     title: '', date: defaultDate, event_time: '', entry_type: 'event', notes: '', recurs_annually: false,
   })
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
   const [lastOpen, setLastOpen] = useState(false)
 
   // Reset form when the dialog opens (render-time state sync, no effect needed)
   if (open !== lastOpen) {
     setLastOpen(open)
     if (open) {
+      setError('')
       setForm(entry
         ? { title: entry.title, date: entry.date, event_time: entry.event_time, entry_type: entry.entry_type, notes: entry.notes, recurs_annually: entry.recurs_annually }
         : { title: '', date: defaultDate, event_time: '', entry_type: 'event', notes: '', recurs_annually: false })
@@ -337,9 +339,16 @@ function EntryFormDialog({ open, onOpenChange, entry, defaultDate, onSave }: {
   const save = async () => {
     if (!form.title.trim()) return
     setSaving(true)
+    setError('')
     try {
       await onSave({ ...form, title: form.title.trim() })
       onOpenChange(false)
+    } catch (e) {
+      console.error('Calendar entry save failed:', e)
+      const msg = e instanceof Error ? e.message
+        : e && typeof e === 'object' && 'message' in e ? String((e as { message: unknown }).message)
+        : String(e)
+      setError(msg)
     } finally {
       setSaving(false)
     }
@@ -396,6 +405,13 @@ function EntryFormDialog({ open, onOpenChange, entry, defaultDate, onSave }: {
             />
             Repeats every year
           </label>
+          {error && (
+            <p className="text-xs text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
+              Couldn't save: {error}
+              {error.includes('column') && ' — this usually means a migration in supabase/ hasn\'t been run yet.'}
+            </p>
+          )}
+
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button onClick={save} disabled={saving || !form.title.trim()}>
