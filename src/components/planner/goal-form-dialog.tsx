@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -130,6 +130,9 @@ export function GoalFormDialog({ open, onOpenChange, goal, onSave }: GoalFormDia
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{goal ? 'Edit goal' : 'New goal'}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {goal ? 'Change this goal\'s settings' : 'Set up a goal to track — quit a habit, build one, or hit a number'}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
