@@ -12,6 +12,32 @@ const InputTab = lazy(() => import('@/components/input/input-tab').then(m => ({ 
 function TabLoading() {
   return <p className="text-sm text-muted-foreground animate-pulse py-8 text-center">Loading…</p>
 }
+
+// Shown when the build has no Supabase credentials (e.g. env vars not set on
+// the hosting platform) — much friendlier than a blank white screen.
+function SetupNotice() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center px-4">
+      <div className="w-full max-w-md min-w-0 space-y-4">
+        <h1 className="font-display text-3xl font-semibold text-primary">LifeFlow</h1>
+        <p className="text-sm leading-relaxed">
+          This build has no database connection. Set these environment variables
+          in your hosting platform (for Vercel: Settings → Environment Variables),
+          then <strong>redeploy</strong> — they're baked in at build time:
+        </p>
+        <pre className="bg-muted border rounded-lg px-4 py-3 text-xs overflow-x-auto">
+{`VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon key>
+VITE_ANTHROPIC_API_KEY=<optional, for "Coach me">`}
+        </pre>
+        <p className="text-xs text-muted-foreground">
+          Both values are in your Supabase project under Settings → API. See the
+          README for full setup.
+        </p>
+      </div>
+    </div>
+  )
+}
 import { useSources } from '@/hooks/use-sources'
 import { useTransactions } from '@/hooks/use-transactions'
 import { useRecurringItems } from '@/hooks/use-recurring-items'
@@ -24,6 +50,7 @@ import { useGoals } from '@/hooks/use-goals'
 import { useGoalEntries } from '@/hooks/use-goal-entries'
 import { useCalendarEntries } from '@/hooks/use-calendar-entries'
 import { useCoachMessages } from '@/hooks/use-coach-messages'
+import { isSupabaseConfigured } from '@/lib/supabase'
 import { CalendarCheck2, CalendarDays, LayoutDashboard, Settings, ReceiptText, Target } from 'lucide-react'
 
 // shortLabel is used in the mobile bottom nav where space is tight
@@ -68,6 +95,8 @@ function App() {
   }
 
   const isLoading = sourcesLoading || txLoading || riLoading || foLoading || cbLoading || balLoading || debtsLoading || assetsLoading || goalsLoading || geLoading
+
+  if (!isSupabaseConfigured) return <SetupNotice />
 
   return (
     <div className="min-h-screen bg-background">
