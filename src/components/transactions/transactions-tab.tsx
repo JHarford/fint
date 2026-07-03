@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { X, Search, Sparkles, Repeat } from 'lucide-react'
-import { format, parseISO } from 'date-fns'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ChevronDown, X, Search, Sparkles, Repeat, type LucideIcon } from 'lucide-react'
+import { format, parseISO, subMonths } from 'date-fns'
 import { useTransactions } from '@/hooks/use-transactions'
 import { useSources } from '@/hooks/use-sources'
 import { CATEGORIES, CATEGORY_META, UNCATEGORISED, categoryOrUncategorised } from '@/lib/categories'
@@ -161,13 +162,13 @@ export function TransactionsTab() {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <Input
               type="number"
               value={minAmount}
               onChange={e => { setMinAmount(e.target.value); setPage(0) }}
               placeholder="Min £"
-              className="h-9 w-24"
+              className="h-9 flex-1 sm:flex-none sm:w-24"
             />
             <span className="text-muted-foreground text-sm">–</span>
             <Input
@@ -175,28 +176,16 @@ export function TransactionsTab() {
               value={maxAmount}
               onChange={e => { setMaxAmount(e.target.value); setPage(0) }}
               placeholder="Max £"
-              className="h-9 w-24"
+              className="h-9 flex-1 sm:flex-none sm:w-24"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <Input
-              type="month"
-              value={fromMonth}
-              onChange={e => { setFromMonth(e.target.value); setPage(0) }}
-              className="h-9 w-36 sm:w-40"
-              title="From month"
-            />
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <MonthSelect value={fromMonth} anyLabel="From: any" onChange={v => { setFromMonth(v); setPage(0) }} />
             <span className="text-muted-foreground text-sm">→</span>
-            <Input
-              type="month"
-              value={toMonth}
-              onChange={e => { setToMonth(e.target.value); setPage(0) }}
-              className="h-9 w-36 sm:w-40"
-              title="To month"
-            />
+            <MonthSelect value={toMonth} anyLabel="To: any" onChange={v => { setToMonth(v); setPage(0) }} />
           </div>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="default" onClick={() => setSuggestOpen(true)} className="h-9">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Button size="sm" variant="default" onClick={() => setSuggestOpen(true)} className="h-9 flex-1 sm:flex-none">
               <Sparkles className="w-3.5 h-3.5 mr-1" /> Suggest recurring
             </Button>
             <Button variant="ghost" size="sm" onClick={resetFilters} className="h-9">
@@ -205,8 +194,29 @@ export function TransactionsTab() {
           </div>
         </div>
 
-        {/* Account chips */}
-        <div className="flex flex-wrap items-center gap-1.5">
+        {/* Mobile: compact multi-select dialogs instead of chip walls */}
+        <div className="flex gap-2 sm:hidden">
+          <FilterMultiSelect
+            label="Accounts"
+            options={sources.map(s => ({ value: s.id, label: s.name }))}
+            selected={accountIds}
+            onToggle={v => { setAccountIds(toggleSet(accountIds, v)); setPage(0) }}
+            onClear={() => { setAccountIds(new Set()); setPage(0) }}
+          />
+          <FilterMultiSelect
+            label="Categories"
+            options={[UNCATEGORISED, ...CATEGORIES].map(c => {
+              const meta = CATEGORY_META[c as keyof typeof CATEGORY_META]
+              return { value: c, label: c, icon: meta.icon, color: meta.color }
+            })}
+            selected={categoriesF}
+            onToggle={v => { setCategoriesF(toggleSet(categoriesF, v)); setPage(0) }}
+            onClear={() => { setCategoriesF(new Set()); setPage(0) }}
+          />
+        </div>
+
+        {/* Desktop: chip rows */}
+        <div className="hidden sm:flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-muted-foreground">Account:</span>
           {sources.map(s => (
             <Badge
@@ -220,8 +230,7 @@ export function TransactionsTab() {
           ))}
         </div>
 
-        {/* Category chips */}
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="hidden sm:flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-muted-foreground">Category:</span>
           {[UNCATEGORISED, ...CATEGORIES].map(c => {
             const meta = CATEGORY_META[c as keyof typeof CATEGORY_META]
@@ -346,6 +355,83 @@ export function TransactionsTab() {
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+// A real month picker — iOS renders empty type="month" inputs as blank boxes
+function MonthSelect({ value, anyLabel, onChange }: {
+  value: string
+  anyLabel: string
+  onChange: (v: string) => void
+}) {
+  const options = useMemo(() =>
+    Array.from({ length: 36 }, (_, i) => {
+      const d = subMonths(new Date(), i)
+      return { key: format(d, 'yyyy-MM'), label: format(d, 'MMM yyyy') }
+    }), [])
+  return (
+    <Select value={value || 'any'} onValueChange={v => onChange(v === 'any' ? '' : v)}>
+      <SelectTrigger className="h-9 flex-1 sm:flex-none sm:w-36">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="any">{anyLabel}</SelectItem>
+        {options.map(o => <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  )
+}
+
+// Compact multi-select for mobile filter buttons
+function FilterMultiSelect({ label, options, selected, onToggle, onClear }: {
+  label: string
+  options: { value: string; label: string; icon?: LucideIcon; color?: string }[]
+  selected: Set<string>
+  onToggle: (v: string) => void
+  onClear: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button
+        variant={selected.size > 0 ? 'default' : 'outline'}
+        size="sm"
+        className="h-9 flex-1"
+        onClick={() => setOpen(true)}
+      >
+        {label}{selected.size > 0 && ` · ${selected.size}`}
+        <ChevronDown className="w-3.5 h-3.5 ml-1" />
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>{label}</DialogTitle>
+            <DialogDescription className="sr-only">Filter transactions by {label.toLowerCase()}</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-72 overflow-y-auto -mx-1 px-1 space-y-0.5">
+            {options.map(o => {
+              const Icon = o.icon
+              return (
+                <label key={o.value} className="flex items-center gap-2.5 px-1.5 py-2 rounded-md hover:bg-muted cursor-pointer text-sm select-none">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(o.value)}
+                    onChange={() => onToggle(o.value)}
+                    className="accent-[var(--primary)]"
+                  />
+                  {Icon && <Icon className={`w-3.5 h-3.5 shrink-0 ${o.color ?? ''}`} />}
+                  <span className="truncate">{o.label}</span>
+                </label>
+              )
+            })}
+          </div>
+          <div className="flex justify-between">
+            <Button variant="ghost" size="sm" onClick={onClear} disabled={selected.size === 0}>Clear</Button>
+            <Button size="sm" onClick={() => setOpen(false)}>Done</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 

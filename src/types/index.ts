@@ -73,11 +73,22 @@ export interface SavingsBucket {
   target_date: string | null
   monthly_allocation: number
   current_amount: number
+  start_date: string
   source_id: string | null
   icon: string
   color: string
   is_active: boolean
   created_at: string
+}
+
+// One row per day: tweet-length diary note + small square photo (data URL)
+export interface JournalDay {
+  id: string
+  day: string
+  note: string
+  photo_data: string
+  created_at: string
+  updated_at: string
 }
 
 export interface RecurringItem {

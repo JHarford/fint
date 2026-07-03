@@ -15,8 +15,10 @@ import {
   isAfter,
   format,
   differenceInDays,
+  differenceInCalendarMonths,
+  parseISO,
 } from 'date-fns'
-import type { RecurringItem, Transaction, ViewMode, AccountBalance, Debt, Frequency, FutureObligation, CategoryBudget, Recurrence } from '@/types'
+import type { RecurringItem, Transaction, ViewMode, AccountBalance, Debt, Frequency, FutureObligation, CategoryBudget, Recurrence, SavingsBucket } from '@/types'
 
 export interface DateColumn {
   label: string
@@ -487,4 +489,12 @@ export function getLatestBalance(
     .sort((a, b) => new Date(b.as_of_date).getTime() - new Date(a.as_of_date).getTime())
 
   return sourceBalances.length > 0 ? sourceBalances[0].balance : null
+}
+
+// A savings bucket's value today: what it was seeded with plus its monthly
+// allocation for every full month since it started. Purely virtual — no money
+// moves anywhere.
+export function bucketValue(bucket: SavingsBucket, now = new Date()): number {
+  const months = Math.max(0, differenceInCalendarMonths(now, parseISO(bucket.start_date)))
+  return Number(bucket.current_amount) + Number(bucket.monthly_allocation) * months
 }
