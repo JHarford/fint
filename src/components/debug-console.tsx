@@ -1,7 +1,9 @@
 // TEMPORARY debug console for diagnosing issues on mobile where devtools
-// aren't available. Captures console.error/warn, window errors, and unhandled
-// promise rejections, and shows them in a panel pinned to the bottom of the
-// screen. Remove this component (and its mount in App.tsx) once done.
+// aren't available. Captures console.error, window errors, and unhandled
+// promise rejections (NOT console.warn — libraries like Recharts emit benign
+// layout warnings that drown out real problems), and shows them in a panel
+// pinned to the bottom of the screen. Remove this component (and its mount in
+// App.tsx) once done.
 import { useEffect, useState } from 'react'
 
 interface LogEntry {
@@ -32,9 +34,7 @@ export function DebugConsole() {
     }
 
     const origError = console.error
-    const origWarn = console.warn
     console.error = (...args: unknown[]) => { origError(...args); push('error', args) }
-    console.warn = (...args: unknown[]) => { origWarn(...args); push('warn', args) }
 
     const onError = (e: ErrorEvent) => push('error', [e.message])
     const onRejection = (e: PromiseRejectionEvent) => push('error', ['Unhandled rejection:', e.reason])
@@ -43,7 +43,6 @@ export function DebugConsole() {
 
     return () => {
       console.error = origError
-      console.warn = origWarn
       window.removeEventListener('error', onError)
       window.removeEventListener('unhandledrejection', onRejection)
     }

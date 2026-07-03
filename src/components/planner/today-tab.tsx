@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Check, Flame, MessageSquarePlus, Pencil, Plus, Trophy, X } from 'lucide-react'
-import type { CoachMessage, Goal, GoalEntry } from '@/types'
+import type { CoachMessage, Goal, GoalEntry, JournalDay } from '@/types'
 import {
   currentStreak, entriesForGoal, entryByDate, lastNDays, latestValue,
   targetProgress, thisWeekCount, todayKey,
@@ -21,11 +21,12 @@ interface TodayTabProps {
   coachMessages: CoachMessage[]
   createCoachMessage: (m: Omit<CoachMessage, 'id' | 'created_at' | 'is_read'>) => Promise<void>
   markCoachMessageRead: (id: string) => Promise<void>
+  journalDays: JournalDay[]
 }
 
 export function TodayTab({
   goals, entries, log, removeEntry, onManageGoals,
-  coachMessages, createCoachMessage, markCoachMessageRead,
+  coachMessages, createCoachMessage, markCoachMessageRead, journalDays,
 }: TodayTabProps) {
   const activeGoals = goals.filter(g => g.is_active)
   const today = todayKey()
@@ -68,6 +69,7 @@ export function TodayTab({
         messages={coachMessages}
         createMessage={createCoachMessage}
         markRead={markCoachMessageRead}
+        journalDays={journalDays}
       />
 
       <div className="space-y-3">

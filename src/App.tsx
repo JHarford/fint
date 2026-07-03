@@ -50,6 +50,7 @@ import { useGoals } from '@/hooks/use-goals'
 import { useGoalEntries } from '@/hooks/use-goal-entries'
 import { useCalendarEntries } from '@/hooks/use-calendar-entries'
 import { useCoachMessages } from '@/hooks/use-coach-messages'
+import { useJournalDays } from '@/hooks/use-journal-days'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { DebugConsole } from '@/components/debug-console'
 import { CalendarCheck2, CalendarDays, LayoutDashboard, Settings, ReceiptText, Target } from 'lucide-react'
@@ -84,6 +85,7 @@ function App() {
   const { entries: goalEntries, loading: geLoading, log: logGoalEntry, remove: removeGoalEntry } = useGoalEntries()
   const { entries: calendarEntries, create: createCalendarEntry, update: updateCalendarEntry, remove: removeCalendarEntry } = useCalendarEntries()
   const { messages: coachMessages, create: createCoachMessage, markRead: markCoachMessageRead } = useCoachMessages()
+  const { days: journalDays, save: saveJournal } = useJournalDays()
   const [forecastMonths, setForecastMonths] = useState(getStoredMonths)
   const [activeTab, setActiveTab] = useState('today')
 
@@ -154,6 +156,7 @@ function App() {
               coachMessages={coachMessages}
               createCoachMessage={createCoachMessage}
               markCoachMessageRead={markCoachMessageRead}
+              journalDays={journalDays}
             />
           </TabsContent>
 
@@ -165,6 +168,8 @@ function App() {
               createEntry={createCalendarEntry}
               updateEntry={updateCalendarEntry}
               removeEntry={removeCalendarEntry}
+              journalDays={journalDays}
+              saveJournal={saveJournal}
             />
           </TabsContent>
 

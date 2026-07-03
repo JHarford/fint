@@ -1,5 +1,5 @@
 import { differenceInCalendarDays, format, getISODay, parseISO } from 'date-fns'
-import type { Goal, GoalEntry } from '@/types'
+import type { Goal, GoalEntry, JournalDay } from '@/types'
 import {
   currentStreak, dateKey, entriesForGoal, STREAK_MILESTONES, targetProgress, thisWeekCount,
 } from './goal-stats'
@@ -128,6 +128,7 @@ export async function generateCoaching(
   goals: Goal[],
   allEntries: GoalEntry[],
   insights: CoachInsight[],
+  journal: JournalDay[] = [],
 ): Promise<string> {
   // Loaded on demand so the SDK stays out of the main bundle
   const { default: Anthropic } = await import('@anthropic-ai/sdk')
@@ -151,6 +152,14 @@ export async function generateCoaching(
     .map(e => `- ${e.date} (${goalNameById.get(e.goal_id)}, ${e.value > 0 ? 'done' : 'slipped'}): "${e.note}"`)
     .join('\n')
 
+  // Daily diary lines from the calendar journal (last week)
+  const diaryLines = journal
+    .filter(j => j.note && differenceInCalendarDays(new Date(), parseISO(j.day)) <= 7)
+    .sort((a, b) => b.day.localeCompare(a.day))
+    .slice(0, 7)
+    .map(j => `- ${j.day}: "${j.note}"`)
+    .join('\n')
+
   const response = await client.messages.create({
     model: 'claude-opus-4-8',
     max_tokens: 1024,
@@ -161,7 +170,7 @@ export async function generateCoaching(
       'End with one concrete, doable suggestion for today. Plain prose, no headings or bullet lists.',
     messages: [{
       role: 'user',
-      content: `Today is ${format(new Date(), 'EEEE d MMMM yyyy')} (${dateKey(new Date())}).\n\nMy goals:\n${goalLines}\n\nWhat's currently flagged:\n${insightLines || '- Nothing flagged; things are broadly on track.'}${noteLines ? `\n\nMy own notes from recent check-ins (use these — they're what actually happened):\n${noteLines}` : ''}\n\nWrite my coaching note for today.`,
+      content: `Today is ${format(new Date(), 'EEEE d MMMM yyyy')} (${dateKey(new Date())}).\n\nMy goals:\n${goalLines}\n\nWhat's currently flagged:\n${insightLines || '- Nothing flagged; things are broadly on track.'}${noteLines ? `\n\nMy own notes from recent check-ins (use these — they're what actually happened):\n${noteLines}` : ''}${diaryLines ? `\n\nMy diary entries this week:\n${diaryLines}` : ''}\n\nWrite my coaching note for today.`,
     }],
   })
 

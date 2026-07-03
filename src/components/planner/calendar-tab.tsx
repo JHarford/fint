@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   addDays, addMonths, addYears, differenceInCalendarDays, endOfMonth, format,
-  isSameMonth, parseISO, startOfMonth, startOfWeek, subMonths,
+  isSameMonth, parseISO, startOfMonth, startOfWeek, subDays, subMonths,
 } from 'date-fns'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -11,11 +11,13 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
-  Bell, Cake, CalendarDays, Check, ChevronLeft, ChevronRight, Pencil, Plus,
-  SquareCheckBig, Trash2, type LucideIcon,
+  Bell, Cake, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Film,
+  ImagePlus, Loader2, Minus, Pencil, Plus, SquareCheckBig, Trash2, X, type LucideIcon,
 } from 'lucide-react'
-import type { CalendarEntry, CalendarEntryType, Goal, GoalEntry } from '@/types'
+import type { CalendarEntry, CalendarEntryType, Goal, GoalEntry, JournalDay } from '@/types'
 import { dateKey, todayKey } from '@/lib/goal-stats'
+import { compressToSquareJpeg } from '@/lib/image'
+import { makeGif, downloadBlob } from '@/lib/gif'
 import { GOAL_ICONS, goalColor } from './goal-meta'
 
 const ENTRY_META: Record<CalendarEntryType, { icon: LucideIcon; label: string; text: string; dot: string }> = {
@@ -24,6 +26,8 @@ const ENTRY_META: Record<CalendarEntryType, { icon: LucideIcon; label: string; t
   reminder: { icon: Bell, label: 'Reminder', text: 'text-primary', dot: 'bg-primary' },
   task: { icon: SquareCheckBig, label: 'Task', text: 'text-chart-3', dot: 'bg-chart-3' },
 }
+
+type CalendarView = 'month' | 'week' | '3day'
 
 // Does this entry fall on the given day (accounting for yearly recurrence)?
 function occursOn(entry: CalendarEntry, day: string): boolean {
@@ -46,16 +50,25 @@ interface CalendarTabProps {
   createEntry: (e: Omit<CalendarEntry, 'id' | 'created_at'>) => Promise<void>
   updateEntry: (id: string, updates: Partial<Omit<CalendarEntry, 'id' | 'created_at'>>) => Promise<void>
   removeEntry: (id: string) => Promise<void>
+  journalDays: JournalDay[]
+  saveJournal: (day: string, updates: { note?: string; photo_data?: string }) => Promise<void>
 }
 
-export function CalendarTab({ goals, goalEntries, entries, createEntry, updateEntry, removeEntry }: CalendarTabProps) {
+export function CalendarTab({
+  goals, goalEntries, entries, createEntry, updateEntry, removeEntry,
+  journalDays, saveJournal,
+}: CalendarTabProps) {
   const today = todayKey()
+  const [view, setView] = useState<CalendarView>('month')
   const [month, setMonth] = useState(() => startOfMonth(new Date()))
+  const [windowStart, setWindowStart] = useState(() => dateKey(startOfWeek(new Date(), { weekStartsOn: 1 })))
   const [selected, setSelected] = useState(today)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<CalendarEntry | null>(null)
+  const [makingGif, setMakingGif] = useState(false)
 
   const goalById = useMemo(() => new Map(goals.map(g => [g.id, g])), [goals])
+  const journalByDay = useMemo(() => new Map(journalDays.map(j => [j.day, j])), [journalDays])
 
   // date -> goals achieved that day (value > 0)
   const achievedByDate = useMemo(() => {
@@ -71,11 +84,55 @@ export function CalendarTab({ goals, goalEntries, entries, createEntry, updateEn
     return map
   }, [goalEntries, goalById])
 
-  const gridStart = startOfWeek(startOfMonth(month), { weekStartsOn: 1 })
-  const weeks = Math.ceil((differenceInCalendarDays(endOfMonth(month), gridStart) + 1) / 7)
-  const days = Array.from({ length: weeks * 7 }, (_, i) => addDays(gridStart, i))
+  // Days visible in the current view
+  const visibleDays = useMemo(() => {
+    if (view === 'month') {
+      const gridStart = startOfWeek(startOfMonth(month), { weekStartsOn: 1 })
+      const weeks = Math.ceil((differenceInCalendarDays(endOfMonth(month), gridStart) + 1) / 7)
+      return Array.from({ length: weeks * 7 }, (_, i) => dateKey(addDays(gridStart, i)))
+    }
+    const count = view === 'week' ? 7 : 3
+    return Array.from({ length: count }, (_, i) => dateKey(addDays(parseISO(windowStart), i)))
+  }, [view, month, windowStart])
 
-  // All-day entries first, then timed entries in time order
+  const viewTitle = view === 'month'
+    ? format(month, 'MMMM yyyy')
+    : `${format(parseISO(visibleDays[0]), 'd MMM')} – ${format(parseISO(visibleDays[visibleDays.length - 1]), 'd MMM')}`
+
+  const navigate = (dir: 1 | -1) => {
+    if (view === 'month') setMonth(m => dir === 1 ? addMonths(m, 1) : subMonths(m, 1))
+    else {
+      const step = view === 'week' ? 7 : 3
+      setWindowStart(w => dateKey(dir === 1 ? addDays(parseISO(w), step) : subDays(parseISO(w), step)))
+    }
+  }
+
+  // + zooms in (month → week → 3day), − zooms out
+  const zoomIn = () => {
+    if (view === 'month') {
+      setView('week')
+      setWindowStart(dateKey(startOfWeek(parseISO(selected), { weekStartsOn: 1 })))
+    } else if (view === 'week') {
+      setView('3day')
+      setWindowStart(dateKey(subDays(parseISO(selected), 1)))
+    }
+  }
+  const zoomOut = () => {
+    if (view === '3day') {
+      setView('week')
+      setWindowStart(dateKey(startOfWeek(parseISO(selected), { weekStartsOn: 1 })))
+    } else if (view === 'week') {
+      setView('month')
+      setMonth(startOfMonth(parseISO(windowStart)))
+    }
+  }
+
+  const goToToday = () => {
+    setSelected(today)
+    setMonth(startOfMonth(new Date()))
+    setWindowStart(dateKey(view === '3day' ? subDays(new Date(), 1) : startOfWeek(new Date(), { weekStartsOn: 1 })))
+  }
+
   const selectedEntries = entries
     .filter(e => occursOn(e, selected))
     .sort((a, b) => a.event_time.localeCompare(b.event_time))
@@ -90,6 +147,27 @@ export function CalendarTab({ goals, goalEntries, entries, createEntry, updateEn
       .slice(0, 12)
   }, [entries, today])
 
+  // Photos within the visible period, for the GIF
+  const photosInView = useMemo(() =>
+    visibleDays
+      .filter(d => view !== 'month' || isSameMonth(parseISO(d), month))
+      .map(d => journalByDay.get(d))
+      .filter((j): j is JournalDay => Boolean(j?.photo_data)),
+  [visibleDays, journalByDay, view, month])
+
+  const exportGif = async () => {
+    setMakingGif(true)
+    try {
+      const blob = await makeGif(photosInView.map(j => j.photo_data))
+      const label = view === 'month' ? format(month, 'yyyy-MM') : visibleDays[0]
+      downloadBlob(blob, `lifeflow-${label}.gif`)
+    } catch (e) {
+      console.error('GIF export failed:', e)
+    } finally {
+      setMakingGif(false)
+    }
+  }
+
   const openCreate = () => { setEditing(null); setDialogOpen(true) }
   const openEdit = (entry: CalendarEntry) => { setEditing(entry); setDialogOpen(true) }
 
@@ -98,77 +176,70 @@ export function CalendarTab({ goals, goalEntries, entries, createEntry, updateEn
       <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className="font-display text-xl font-semibold">Calendar</h2>
-          <p className="text-sm text-muted-foreground">Goal wins, birthdays, and everything coming up</p>
+          <p className="text-sm text-muted-foreground hidden sm:block">Goal wins, memories, and everything coming up</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="w-4 h-4 mr-1" /> Add entry
-        </Button>
+        <div className="flex items-center gap-2">
+          {photosInView.length >= 2 && (
+            <Button variant="outline" size="sm" onClick={exportGif} disabled={makingGif} title={`GIF of ${photosInView.length} photos (0.2s each)`}>
+              {makingGif ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Film className="w-4 h-4 mr-1" />}
+              GIF
+            </Button>
+          )}
+          <Button onClick={openCreate}>
+            <Plus className="w-4 h-4 mr-1" /> Add entry
+          </Button>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-4 items-start">
         <Card className="py-4 px-4 gap-3">
-          {/* Month header */}
-          <div className="flex items-center justify-between">
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setMonth(subMonths(month, 1))}>
+          {/* Period header with nav + zoom */}
+          <div className="flex items-center justify-between gap-1">
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => navigate(-1)}>
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <div className="flex items-center gap-2">
-              <span className="font-display text-lg font-semibold">{format(month, 'MMMM yyyy')}</span>
-              {!isSameMonth(month, new Date()) && (
-                <Button variant="outline" size="sm" className="h-6 text-xs px-2" onClick={() => { setMonth(startOfMonth(new Date())); setSelected(today) }}>
-                  Today
-                </Button>
-              )}
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="font-display text-base sm:text-lg font-semibold truncate">{viewTitle}</span>
+              <Button variant="outline" size="sm" className="h-6 text-xs px-2 shrink-0" onClick={goToToday}>
+                Today
+              </Button>
             </div>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setMonth(addMonths(month, 1))}>
-              <ChevronRight className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-0.5">
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Zoom out" onClick={zoomOut} disabled={view === 'month'}>
+                <Minus className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Zoom in" onClick={zoomIn} disabled={view === '3day'}>
+                <Plus className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => navigate(1)}>
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
 
-          {/* Weekday header */}
-          <div className="grid grid-cols-7 text-center text-[10px] uppercase tracking-wide text-muted-foreground">
-            {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map(d => <span key={d}>{d}</span>)}
-          </div>
-
-          {/* Day grid */}
-          <div className="grid grid-cols-7 gap-1">
-            {days.map(day => {
-              const key = dateKey(day)
-              const inMonth = isSameMonth(day, month)
-              const achieved = achievedByDate.get(key) ?? []
-              const dayEntries = entries.filter(e => occursOn(e, key))
-              const isSelected = key === selected
-              const isToday = key === today
-              return (
-                <button
-                  key={key}
-                  onClick={() => setSelected(key)}
-                  className={`min-h-14 sm:min-h-16 rounded-md border px-1 pt-1 pb-1.5 flex flex-col items-center gap-1 transition-colors text-left
-                    ${isSelected ? 'border-primary bg-primary/10' : 'border-transparent hover:bg-muted'}
-                    ${inMonth ? '' : 'opacity-35'}`}
-                >
-                  <span className={`text-xs leading-none w-5 h-5 flex items-center justify-center rounded-full ${isToday ? 'bg-primary text-primary-foreground font-semibold' : ''}`}>
-                    {format(day, 'd')}
-                  </span>
-                  {achieved.length > 0 && (
-                    <span className="flex gap-0.5 flex-wrap justify-center">
-                      {achieved.slice(0, 4).map(g => (
-                        <span key={g.id} title={g.name} className={`w-1.5 h-1.5 rounded-full ${goalColor(g.color).solid}`} />
-                      ))}
-                    </span>
-                  )}
-                  {dayEntries.length > 0 && (
-                    <span className="flex gap-0.5 items-center">
-                      {dayEntries.slice(0, 3).map(e => {
-                        const Icon = ENTRY_META[e.entry_type].icon
-                        return <Icon key={e.id} className={`w-2.5 h-2.5 ${ENTRY_META[e.entry_type].text}`} />
-                      })}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
+          {view === 'month' ? (
+            <MonthGrid
+              days={visibleDays}
+              month={month}
+              today={today}
+              selected={selected}
+              achievedByDate={achievedByDate}
+              entries={entries}
+              journalByDay={journalByDay}
+              onSelect={setSelected}
+            />
+          ) : (
+            <DayRows
+              days={visibleDays}
+              today={today}
+              selected={selected}
+              achievedByDate={achievedByDate}
+              entries={entries}
+              journalByDay={journalByDay}
+              big={view === '3day'}
+              onSelect={setSelected}
+            />
+          )}
         </Card>
 
         <div className="space-y-4">
@@ -180,6 +251,12 @@ export function CalendarTab({ goals, goalEntries, entries, createEntry, updateEn
                 <Plus className="w-3.5 h-3.5 mr-1" /> Add
               </Button>
             </div>
+
+            <DayJournal
+              day={selected}
+              journal={journalByDay.get(selected)}
+              save={saveJournal}
+            />
 
             {selectedAchieved.length > 0 && (
               <div className="space-y-1.5">
@@ -228,7 +305,11 @@ export function CalendarTab({ goals, goalEntries, entries, createEntry, updateEn
                 <button
                   key={`${entry.id}-${on}`}
                   className="flex items-center gap-2.5 text-left hover:bg-muted rounded-md px-1.5 py-1 -mx-1.5 transition-colors"
-                  onClick={() => { setSelected(on); setMonth(startOfMonth(parseISO(on))) }}
+                  onClick={() => {
+                    setSelected(on)
+                    setMonth(startOfMonth(parseISO(on)))
+                    setWindowStart(dateKey(startOfWeek(parseISO(on), { weekStartsOn: 1 })))
+                  }}
                 >
                   <Icon className={`w-4 h-4 shrink-0 ${ENTRY_META[entry.entry_type].text}`} />
                   <span className="text-sm truncate flex-1 min-w-0">{entry.title}</span>
@@ -253,6 +334,240 @@ export function CalendarTab({ goals, goalEntries, entries, createEntry, updateEn
           else await createEntry({ ...values, is_done: false, source: 'user' })
         }}
       />
+    </div>
+  )
+}
+
+// ---- Month grid ----
+
+function MonthGrid({ days, month, today, selected, achievedByDate, entries, journalByDay, onSelect }: {
+  days: string[]
+  month: Date
+  today: string
+  selected: string
+  achievedByDate: Map<string, Goal[]>
+  entries: CalendarEntry[]
+  journalByDay: Map<string, JournalDay>
+  onSelect: (day: string) => void
+}) {
+  return (
+    <>
+      <div className="grid grid-cols-7 text-center text-[10px] uppercase tracking-wide text-muted-foreground">
+        {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map(d => <span key={d}>{d}</span>)}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {days.map(key => {
+          const day = parseISO(key)
+          const inMonth = isSameMonth(day, month)
+          const achieved = achievedByDate.get(key) ?? []
+          const dayEntries = entries.filter(e => occursOn(e, key))
+          const hasPhoto = Boolean(journalByDay.get(key)?.photo_data)
+          const isSelected = key === selected
+          const isToday = key === today
+          return (
+            <button
+              key={key}
+              onClick={() => onSelect(key)}
+              className={`min-h-14 sm:min-h-16 rounded-md border px-1 pt-1 pb-1.5 flex flex-col items-center gap-1 transition-colors
+                ${isSelected ? 'border-primary bg-primary/10' : 'border-transparent hover:bg-muted'}
+                ${inMonth ? '' : 'opacity-35'}`}
+            >
+              <span className={`text-xs leading-none w-5 h-5 flex items-center justify-center rounded-full ${isToday ? 'bg-primary text-primary-foreground font-semibold' : ''}`}>
+                {format(day, 'd')}
+              </span>
+              {achieved.length > 0 && (
+                <span className="flex gap-0.5 flex-wrap justify-center">
+                  {achieved.slice(0, 4).map(g => (
+                    <span key={g.id} title={g.name} className={`w-1.5 h-1.5 rounded-full ${goalColor(g.color).solid}`} />
+                  ))}
+                </span>
+              )}
+              {(dayEntries.length > 0 || hasPhoto) && (
+                <span className="flex gap-0.5 items-center">
+                  {hasPhoto && <Camera className="w-2.5 h-2.5 text-muted-foreground" />}
+                  {dayEntries.slice(0, 3).map(e => {
+                    const Icon = ENTRY_META[e.entry_type].icon
+                    return <Icon key={e.id} className={`w-2.5 h-2.5 ${ENTRY_META[e.entry_type].text}`} />
+                  })}
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </>
+  )
+}
+
+// ---- Week / 3-day rows: room for the photo and the diary line ----
+
+function DayRows({ days, today, selected, achievedByDate, entries, journalByDay, big, onSelect }: {
+  days: string[]
+  today: string
+  selected: string
+  achievedByDate: Map<string, Goal[]>
+  entries: CalendarEntry[]
+  journalByDay: Map<string, JournalDay>
+  big: boolean
+  onSelect: (day: string) => void
+}) {
+  return (
+    <div className="space-y-1.5">
+      {days.map(key => {
+        const day = parseISO(key)
+        const journal = journalByDay.get(key)
+        const achieved = achievedByDate.get(key) ?? []
+        const dayEntries = entries
+          .filter(e => occursOn(e, key))
+          .sort((a, b) => a.event_time.localeCompare(b.event_time))
+        const isSelected = key === selected
+        const isToday = key === today
+        const photoSize = big ? 'w-24 h-24 sm:w-28 sm:h-28' : 'w-16 h-16 sm:w-20 sm:h-20'
+        return (
+          <button
+            key={key}
+            onClick={() => onSelect(key)}
+            className={`w-full text-left rounded-lg border px-2.5 py-2 flex gap-3 transition-colors
+              ${isSelected ? 'border-primary bg-primary/10' : 'border-border/60 hover:bg-muted'}`}
+          >
+            <div className="flex flex-col items-center w-9 shrink-0 pt-0.5">
+              <span className="text-[10px] uppercase text-muted-foreground">{format(day, 'EEE')}</span>
+              <span className={`text-sm font-semibold w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-primary text-primary-foreground' : ''}`}>
+                {format(day, 'd')}
+              </span>
+            </div>
+
+            {journal?.photo_data ? (
+              <img src={journal.photo_data} alt="" className={`${photoSize} rounded-lg object-cover shrink-0`} />
+            ) : (
+              <div className={`${photoSize} rounded-lg bg-muted/60 flex items-center justify-center shrink-0`}>
+                <Camera className="w-4 h-4 text-muted-foreground/40" />
+              </div>
+            )}
+
+            <div className="min-w-0 flex-1 space-y-1 py-0.5">
+              {journal?.note && (
+                <p className={`italic text-muted-foreground leading-snug ${big ? 'text-sm' : 'text-xs'}`}>“{journal.note}”</p>
+              )}
+              {achieved.length > 0 && (
+                <span className="flex gap-0.5">
+                  {achieved.slice(0, 6).map(g => (
+                    <span key={g.id} title={g.name} className={`w-1.5 h-1.5 rounded-full ${goalColor(g.color).solid}`} />
+                  ))}
+                </span>
+              )}
+              {dayEntries.slice(0, big ? 5 : 3).map(e => {
+                const Icon = ENTRY_META[e.entry_type].icon
+                return (
+                  <p key={e.id} className="text-xs flex items-center gap-1.5 truncate">
+                    <Icon className={`w-3 h-3 shrink-0 ${ENTRY_META[e.entry_type].text}`} />
+                    {e.event_time && <span className="tabular-nums font-medium">{e.event_time}</span>}
+                    <span className="truncate">{e.title}</span>
+                  </p>
+                )
+              })}
+            </div>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ---- Daily journal: square photo + tweet-length note ----
+
+function DayJournal({ day, journal, save }: {
+  day: string
+  journal: JournalDay | undefined
+  save: (day: string, updates: { note?: string; photo_data?: string }) => Promise<void>
+}) {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [note, setNote] = useState(journal?.note ?? '')
+  const [lastDay, setLastDay] = useState(day)
+  const [busy, setBusy] = useState(false)
+
+  // Sync local note state when the selected day changes
+  if (day !== lastDay) {
+    setLastDay(day)
+    setNote(journal?.note ?? '')
+  }
+
+  const onPhotoPicked = async (file: File | undefined) => {
+    if (!file) return
+    setBusy(true)
+    try {
+      const photo_data = await compressToSquareJpeg(file)
+      await save(day, { photo_data })
+    } catch (e) {
+      console.error('Photo save failed:', e)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const saveNote = async () => {
+    const trimmed = note.trim().slice(0, 150)
+    if (trimmed === (journal?.note ?? '')) return
+    try {
+      await save(day, { note: trimmed })
+    } catch (e) {
+      console.error('Note save failed:', e)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={e => { onPhotoPicked(e.target.files?.[0]); e.target.value = '' }}
+      />
+      {journal?.photo_data ? (
+        <div className="relative w-full max-w-[240px]">
+          <img src={journal.photo_data} alt={`Photo from ${day}`} className="w-full aspect-square rounded-lg object-cover" />
+          <div className="absolute top-1.5 right-1.5 flex gap-1">
+            <button
+              className="bg-foreground/60 text-background rounded-full p-1.5"
+              title="Replace photo"
+              onClick={() => fileRef.current?.click()}
+            >
+              <ImagePlus className="w-3.5 h-3.5" />
+            </button>
+            <button
+              className="bg-foreground/60 text-background rounded-full p-1.5"
+              title="Remove photo"
+              onClick={() => save(day, { photo_data: '' })}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <Button variant="outline" size="sm" className="h-8 text-xs" disabled={busy} onClick={() => fileRef.current?.click()}>
+          {busy ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Camera className="w-3.5 h-3.5 mr-1" />}
+          Add photo of the day
+        </Button>
+      )}
+
+      <div className="space-y-1">
+        <div className="flex items-center gap-1.5">
+          <Input
+            value={note}
+            maxLength={150}
+            onChange={e => setNote(e.target.value)}
+            onBlur={saveNote}
+            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+            placeholder="Dear diary… (150 chars)"
+            className="h-8 text-sm"
+          />
+          <Button size="sm" className="h-8" variant="outline" onClick={saveNote} disabled={note.trim() === (journal?.note ?? '')}>
+            Save
+          </Button>
+        </div>
+        <p className="text-[10px] text-muted-foreground text-right">{note.length}/150</p>
+      </div>
     </div>
   )
 }
@@ -414,7 +729,6 @@ function EntryFormDialog({ open, onOpenChange, entry, defaultDate, onSave }: {
               {error.includes('column') && ' — this usually means a migration in supabase/ hasn\'t been run yet.'}
             </p>
           )}
-
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button onClick={save} disabled={saving || !form.title.trim()}>

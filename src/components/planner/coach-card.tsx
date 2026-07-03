@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Flame, HeartHandshake, Loader2, Sparkles, TrendingUp, X } from 'lucide-react'
-import type { CoachMessage, Goal, GoalEntry } from '@/types'
+import type { CoachMessage, Goal, GoalEntry, JournalDay } from '@/types'
 import { detectInsights, generateCoaching, hasAnthropicKey, type CoachInsight } from '@/lib/coach'
 
 interface CoachCardProps {
@@ -11,6 +11,7 @@ interface CoachCardProps {
   messages: CoachMessage[]
   createMessage: (m: Omit<CoachMessage, 'id' | 'created_at' | 'is_read'>) => Promise<void>
   markRead: (id: string) => Promise<void>
+  journalDays?: JournalDay[]
 }
 
 const TONE_ICON = {
@@ -19,7 +20,7 @@ const TONE_ICON = {
   celebrate: Flame,
 } as const
 
-export function CoachCard({ goals, goalEntries, messages, createMessage, markRead }: CoachCardProps) {
+export function CoachCard({ goals, goalEntries, messages, createMessage, markRead, journalDays = [] }: CoachCardProps) {
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState('')
 
@@ -30,7 +31,7 @@ export function CoachCard({ goals, goalEntries, messages, createMessage, markRea
     setGenerating(true)
     setError('')
     try {
-      const note = await generateCoaching(goals, goalEntries, insights)
+      const note = await generateCoaching(goals, goalEntries, insights, journalDays)
       if (note) {
         await createMessage({
           message: note,

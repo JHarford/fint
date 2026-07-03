@@ -1,4 +1,5 @@
 import { SummaryCards } from './summary-cards'
+import { SavingsBucketsSection } from './savings-buckets-section'
 import { DateGrid } from './date-grid'
 import { MonthlyAnalysis } from './monthly-analysis'
 import type { Source, Transaction, RecurringItem, AccountBalance, Debt, Asset, FutureObligation, CategoryBudget } from '@/types'
@@ -19,6 +20,7 @@ export function DashboardTab({ sources, transactions, recurringItems, futureObli
   return (
     <div className="space-y-6">
       <SummaryCards sources={sources} balances={balances} debts={debts} recurringItems={recurringItems} assets={assets} forecastMonths={forecastMonths} />
+      <SavingsBucketsSection sources={sources} balances={balances} />
       <MonthlyAnalysis transactions={transactions} categoryBudgets={categoryBudgets} />
       <DateGrid
         transactions={transactions}
