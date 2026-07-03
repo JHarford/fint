@@ -143,6 +143,9 @@ export interface Goal {
   target_value: number | null
   unit: string
   target_date: string | null
+  // abstinence goals: what the habit used to cost, for money-saved / units-avoided stats
+  weekly_spend: number | null
+  weekly_units: number | null
   is_active: boolean
   sort_order: number
   created_at: string
@@ -166,6 +169,7 @@ export interface CalendarEntry {
   id: string
   title: string
   date: string
+  event_time: string // "HH:MM", empty = all-day
   entry_type: CalendarEntryType
   notes: string
   recurs_annually: boolean

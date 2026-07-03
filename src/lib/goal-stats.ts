@@ -110,6 +110,25 @@ export function targetProgress(goal: Goal, goalEntries: GoalEntry[]): TargetProg
   return { current, pct, remaining, daysLeft, onTrack }
 }
 
+export const STREAK_MILESTONES = [7, 14, 30, 50, 100, 200, 365, 500, 730, 1000]
+
+// Next streak milestone ahead of the current streak, with days to go
+export function nextMilestone(streak: number): { at: number; daysToGo: number } | null {
+  const at = STREAK_MILESTONES.find(m => m > streak)
+  return at ? { at, daysToGo: at - streak } : null
+}
+
+// Money saved by an abstinence goal: clean days × (what a week of the habit cost / 7)
+export function moneySaved(goal: Goal, goalEntries: GoalEntry[]): number | null {
+  if (goal.weekly_spend === null || goal.weekly_spend === undefined) return null
+  return totalDone(goalEntries) * (Number(goal.weekly_spend) / 7)
+}
+
+export function unitsAvoided(goal: Goal, goalEntries: GoalEntry[]): number | null {
+  if (goal.weekly_units === null || goal.weekly_units === undefined) return null
+  return totalDone(goalEntries) * (Number(goal.weekly_units) / 7)
+}
+
 export function heatmapRangeLabel(weeks = 16): string {
   const start = startOfWeek(subWeeks(new Date(), weeks - 1), { weekStartsOn: 1 })
   return `${format(start, 'd MMM')} – today`

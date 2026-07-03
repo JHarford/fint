@@ -32,8 +32,9 @@ labels it as coming from your assistant.
 
 ```sh
 sb-post "$SUPABASE_URL/rest/v1/calendar_entries" -d '{
-  "title": "Dentist — 2:30pm",
+  "title": "Dentist",
   "date": "2026-07-15",
+  "event_time": "14:30",
   "entry_type": "event",
   "notes": "From email: confirmation #8841",
   "source": "droplet"
@@ -49,9 +50,9 @@ sb-post "$SUPABASE_URL/rest/v1/calendar_entries" -d '{
 }'
 ```
 
-Fields: `title` (required), `date` (required, YYYY-MM-DD), `entry_type`
-(`event` | `birthday` | `reminder` | `task`), `notes`, `recurs_annually`,
-`is_done`, `source` (`user` | `droplet` | `ai`).
+Fields: `title` (required), `date` (required, YYYY-MM-DD), `event_time`
+("HH:MM", empty = all-day), `entry_type` (`event` | `birthday` | `reminder` |
+`task`), `notes`, `recurs_annually`, `is_done`, `source` (`user` | `droplet` | `ai`).
 
 ## 2. Send coaching messages
 

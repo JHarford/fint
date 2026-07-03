@@ -1,73 +1,66 @@
-# React + TypeScript + Vite
+# LifeFlow
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A personal planner for running your life: goal streaks, habits, savings
+targets, a calendar, personal finance, and AI coaching — in one installable
+web app backed by Supabase.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Today** — daily check-ins: mark clean days on quit-goals (no alcohol, no
+  smoking), tick off habits, log numeric targets. Tappable 7-day strip for
+  backfilling missed days, and per-day notes ("work drinks — stuck to soda
+  water") that feed the coach.
+- **Goals** — streaks (current/best), slips, GitHub-style heatmaps, habit
+  pace vs weekly target, progress charts with on-track pacing. Abstinence
+  goals can track money saved and units avoided, with milestone countdowns.
+- **Coach** — rule-based insights (slips, missed days, weeks falling behind,
+  off-track targets, milestones) plus optional AI coaching notes via the
+  Anthropic API, personalised from your actual data and notes.
+- **Calendar** — month view showing which goals you achieved each day,
+  alongside birthdays (yearly recurring), events with optional times,
+  reminders, and tasks. "Coming up" list for the next 60 days.
+- **Finance** — the original Fint dashboard: net worth, account forecasting,
+  transaction categorisation, budgets, debts, and assets.
+- **External pushes** — a droplet/agent can insert calendar entries, coaching
+  messages, and goal check-ins straight into Supabase (see `DROPLET.md`).
+- **Installable PWA** — add to your phone's home screen; app shell is cached
+  by a service worker.
 
-## React Compiler
+## Setup
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. Create a [Supabase](https://supabase.com) project and run the migrations
+   in `supabase/` **in order** (`migration.sql`, then `migration-002.sql` …
+   `migration-008.sql`) in the SQL editor.
+2. Configure `.env`:
 
-## Expanding the ESLint configuration
+   ```sh
+   VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+   VITE_SUPABASE_ANON_KEY=<anon key>
+   # Optional — enables the in-app "Coach me" button.
+   # Note: this key ships in the built bundle; for anything shared,
+   # generate coaching from the droplet instead (DROPLET.md).
+   VITE_ANTHROPIC_API_KEY=<anthropic key>
+   ```
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+3. Install and run:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+   ```sh
+   npm install
+   npm run dev       # local dev
+   npm run build     # production build (includes PWA service worker)
+   npm run preview   # serve the production build
+   ```
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## Notes
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- Single-user app: row level security is disabled on the tables. Don't post
+  the deployed URL publicly, and keep the service key on the droplet only.
+- The service worker only precaches the app shell; Supabase and Anthropic
+  requests always go to the network.
+- `DROPLET.md` documents the REST calls for pushing events, coaching, and
+  check-ins from an external agent.
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Stack
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+React 19 · Vite 7 · Tailwind 4 · shadcn/ui · Supabase · Recharts ·
+`@anthropic-ai/sdk` (lazy-loaded) · vite-plugin-pwa

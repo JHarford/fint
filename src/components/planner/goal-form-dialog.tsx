@@ -20,6 +20,8 @@ export interface GoalFormValues {
   target_value: number | null
   unit: string
   target_date: string | null
+  weekly_spend: number | null
+  weekly_units: number | null
 }
 
 interface GoalFormDialogProps {
@@ -41,6 +43,8 @@ const emptyForm = (): GoalFormValues => ({
   target_value: null,
   unit: '',
   target_date: null,
+  weekly_spend: null,
+  weekly_units: null,
 })
 
 export function GoalFormDialog({ open, onOpenChange, goal, onSave }: GoalFormDialogProps) {
@@ -62,6 +66,8 @@ export function GoalFormDialog({ open, onOpenChange, goal, onSave }: GoalFormDia
         target_value: goal.target_value !== null ? Number(goal.target_value) : null,
         unit: goal.unit,
         target_date: goal.target_date,
+        weekly_spend: goal.weekly_spend !== null ? Number(goal.weekly_spend) : null,
+        weekly_units: goal.weekly_units !== null ? Number(goal.weekly_units) : null,
       })
     } else {
       setForm(emptyForm())
@@ -98,6 +104,8 @@ export function GoalFormDialog({ open, onOpenChange, goal, onSave }: GoalFormDia
         target_value: form.goal_type === 'target' ? form.target_value : null,
         unit: form.goal_type === 'target' ? form.unit : '',
         target_date: form.goal_type === 'target' ? form.target_date : null,
+        weekly_spend: form.goal_type === 'abstinence' ? form.weekly_spend : null,
+        weekly_units: form.goal_type === 'abstinence' ? form.weekly_units : null,
       })
       onOpenChange(false)
     } finally {
@@ -156,6 +164,33 @@ export function GoalFormDialog({ open, onOpenChange, goal, onSave }: GoalFormDia
               <Label htmlFor="goal-start">Start date</Label>
               <Input id="goal-start" type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} />
             </div>
+
+            {form.goal_type === 'abstinence' && (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="goal-spend">Weekly spend <span className="text-muted-foreground font-normal">(£, optional)</span></Label>
+                  <Input
+                    id="goal-spend"
+                    type="number"
+                    min={0}
+                    value={form.weekly_spend ?? ''}
+                    onChange={e => set('weekly_spend', e.target.value === '' ? null : parseFloat(e.target.value))}
+                    placeholder="What it used to cost"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="goal-units">Units per week <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                  <Input
+                    id="goal-units"
+                    type="number"
+                    min={0}
+                    value={form.weekly_units ?? ''}
+                    onChange={e => set('weekly_units', e.target.value === '' ? null : parseFloat(e.target.value))}
+                    placeholder="Drinks, cigarettes…"
+                  />
+                </div>
+              </>
+            )}
 
             {form.goal_type === 'habit' && (
               <div className="space-y-1.5">

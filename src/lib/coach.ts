@@ -1,8 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk'
 import { differenceInCalendarDays, format, getISODay, parseISO } from 'date-fns'
 import type { Goal, GoalEntry } from '@/types'
 import {
-  currentStreak, dateKey, entriesForGoal, targetProgress, thisWeekCount,
+  currentStreak, dateKey, entriesForGoal, STREAK_MILESTONES, targetProgress, thisWeekCount,
 } from './goal-stats'
 
 // A coaching insight derived locally from goal data — no API needed.
@@ -13,8 +12,6 @@ export interface CoachInsight {
   tone: 'support' | 'nudge' | 'celebrate'
   summary: string
 }
-
-const STREAK_MILESTONES = new Set([7, 14, 30, 50, 100, 200, 365])
 
 export function detectInsights(goals: Goal[], allEntries: GoalEntry[]): CoachInsight[] {
   const insights: CoachInsight[] = []
@@ -53,7 +50,7 @@ export function detectInsights(goals: Goal[], allEntries: GoalEntry[]): CoachIns
       }
 
       const streak = currentStreak(entries)
-      if (STREAK_MILESTONES.has(streak)) {
+      if (STREAK_MILESTONES.includes(streak)) {
         insights.push({
           goalId: goal.id,
           goalName: goal.name,
@@ -132,16 +129,27 @@ export async function generateCoaching(
   allEntries: GoalEntry[],
   insights: CoachInsight[],
 ): Promise<string> {
+  // Loaded on demand so the SDK stays out of the main bundle
+  const { default: Anthropic } = await import('@anthropic-ai/sdk')
   const client = new Anthropic({
     apiKey: import.meta.env.VITE_ANTHROPIC_API_KEY,
     dangerouslyAllowBrowser: true,
   })
 
-  const goalLines = goals
-    .filter(g => g.is_active)
+  const activeGoals = goals.filter(g => g.is_active)
+  const goalLines = activeGoals
     .map(g => describeGoal(g, entriesForGoal(allEntries, g.id)))
     .join('\n')
   const insightLines = insights.map(i => `- ${i.summary}`).join('\n')
+
+  // Personal notes from recent check-ins are the richest coaching signal
+  const goalNameById = new Map(activeGoals.map(g => [g.id, g.name]))
+  const noteLines = allEntries
+    .filter(e => e.note && goalNameById.has(e.goal_id) && differenceInCalendarDays(new Date(), parseISO(e.date)) <= 14)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 10)
+    .map(e => `- ${e.date} (${goalNameById.get(e.goal_id)}, ${e.value > 0 ? 'done' : 'slipped'}): "${e.note}"`)
+    .join('\n')
 
   const response = await client.messages.create({
     model: 'claude-opus-4-8',
@@ -153,7 +161,7 @@ export async function generateCoaching(
       'End with one concrete, doable suggestion for today. Plain prose, no headings or bullet lists.',
     messages: [{
       role: 'user',
-      content: `Today is ${format(new Date(), 'EEEE d MMMM yyyy')} (${dateKey(new Date())}).\n\nMy goals:\n${goalLines}\n\nWhat's currently flagged:\n${insightLines || '- Nothing flagged; things are broadly on track.'}\n\nWrite my coaching note for today.`,
+      content: `Today is ${format(new Date(), 'EEEE d MMMM yyyy')} (${dateKey(new Date())}).\n\nMy goals:\n${goalLines}\n\nWhat's currently flagged:\n${insightLines || '- Nothing flagged; things are broadly on track.'}${noteLines ? `\n\nMy own notes from recent check-ins (use these — they're what actually happened):\n${noteLines}` : ''}\n\nWrite my coaching note for today.`,
     }],
   })
 

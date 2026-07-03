@@ -75,7 +75,10 @@ export function CalendarTab({ goals, goalEntries, entries, createEntry, updateEn
   const weeks = Math.ceil((differenceInCalendarDays(endOfMonth(month), gridStart) + 1) / 7)
   const days = Array.from({ length: weeks * 7 }, (_, i) => addDays(gridStart, i))
 
-  const selectedEntries = entries.filter(e => occursOn(e, selected))
+  // All-day entries first, then timed entries in time order
+  const selectedEntries = entries
+    .filter(e => occursOn(e, selected))
+    .sort((a, b) => a.event_time.localeCompare(b.event_time))
   const selectedAchieved = achievedByDate.get(selected) ?? []
 
   const upcoming = useMemo(() => {
@@ -231,6 +234,7 @@ export function CalendarTab({ goals, goalEntries, entries, createEntry, updateEn
                   <span className="text-sm truncate flex-1 min-w-0">{entry.title}</span>
                   <span className="text-xs text-muted-foreground whitespace-nowrap">
                     {inDays === 0 ? 'today' : inDays === 1 ? 'tomorrow' : format(parseISO(on), 'EEE d MMM')}
+                    {entry.event_time && ` · ${entry.event_time}`}
                   </span>
                 </button>
               )
@@ -267,6 +271,7 @@ function EntryRow({ entry, onEdit, onToggleDone, onDelete }: {
       <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${meta.text}`} />
       <div className="min-w-0 flex-1">
         <p className={`text-sm ${entry.is_done ? 'line-through text-muted-foreground' : ''}`}>
+          {entry.event_time && <span className="tabular-nums font-medium mr-1.5">{entry.event_time}</span>}
           {entry.title}
           {entry.recurs_annually && <span className="text-[10px] text-muted-foreground ml-1.5">yearly</span>}
           {entry.source !== 'user' && (
@@ -297,6 +302,7 @@ function EntryRow({ entry, onEdit, onToggleDone, onDelete }: {
 interface EntryFormValues {
   title: string
   date: string
+  event_time: string
   entry_type: CalendarEntryType
   notes: string
   recurs_annually: boolean
@@ -310,7 +316,7 @@ function EntryFormDialog({ open, onOpenChange, entry, defaultDate, onSave }: {
   onSave: (values: EntryFormValues) => Promise<void>
 }) {
   const [form, setForm] = useState<EntryFormValues>({
-    title: '', date: defaultDate, entry_type: 'event', notes: '', recurs_annually: false,
+    title: '', date: defaultDate, event_time: '', entry_type: 'event', notes: '', recurs_annually: false,
   })
   const [saving, setSaving] = useState(false)
   const [lastOpen, setLastOpen] = useState(false)
@@ -320,8 +326,8 @@ function EntryFormDialog({ open, onOpenChange, entry, defaultDate, onSave }: {
     setLastOpen(open)
     if (open) {
       setForm(entry
-        ? { title: entry.title, date: entry.date, entry_type: entry.entry_type, notes: entry.notes, recurs_annually: entry.recurs_annually }
-        : { title: '', date: defaultDate, entry_type: 'event', notes: '', recurs_annually: false })
+        ? { title: entry.title, date: entry.date, event_time: entry.event_time, entry_type: entry.entry_type, notes: entry.notes, recurs_annually: entry.recurs_annually }
+        : { title: '', date: defaultDate, event_time: '', entry_type: 'event', notes: '', recurs_annually: false })
     }
   }
 
@@ -371,6 +377,10 @@ function EntryFormDialog({ open, onOpenChange, entry, defaultDate, onSave }: {
             <div className="space-y-1.5">
               <Label htmlFor="entry-date">Date</Label>
               <Input id="entry-date" type="date" value={form.date} onChange={e => set('date', e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="entry-time">Time <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <Input id="entry-time" type="time" value={form.event_time} onChange={e => set('event_time', e.target.value)} />
             </div>
           </div>
           <div className="space-y-1.5">

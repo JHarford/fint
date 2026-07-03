@@ -9,7 +9,8 @@ import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YA
 import type { Goal, GoalEntry } from '@/types'
 import {
   bestStreak, currentStreak, daysSinceStart, entriesForGoal, heatmapRangeLabel,
-  slipCount, targetProgress, thisWeekCount, totalDone,
+  moneySaved, nextMilestone, slipCount, targetProgress, thisWeekCount, totalDone,
+  unitsAvoided,
 } from '@/lib/goal-stats'
 import { GoalHeatmap } from './goal-heatmap'
 import { GoalFormDialog, type GoalFormValues } from './goal-form-dialog'
@@ -179,15 +180,27 @@ function GoalStats({ goal, goalEntries }: { goal: Goal; goalEntries: GoalEntry[]
     const best = bestStreak(goalEntries)
     const clean = totalDone(goalEntries)
     const slips = slipCount(goalEntries)
+    const saved = moneySaved(goal, goalEntries)
+    const units = unitsAvoided(goal, goalEntries)
+    const milestone = nextMilestone(streak)
     return (
-      <div className="flex flex-wrap gap-x-6 gap-y-2 sm:pl-12">
-        <div className="flex items-center gap-1">
-          <Flame className="w-4 h-4 text-orange-500" />
-          <Stat label="Current streak" value={`${streak}d`} highlight />
+      <div className="space-y-2 sm:pl-12">
+        <div className="flex flex-wrap gap-x-6 gap-y-2">
+          <div className="flex items-center gap-1">
+            <Flame className="w-4 h-4 text-orange-500" />
+            <Stat label="Current streak" value={`${streak}d`} highlight />
+          </div>
+          <Stat label="Best streak" value={`${best}d`} />
+          <Stat label="Clean days" value={String(clean)} />
+          <Stat label="Slips" value={String(slips)} />
+          {saved !== null && <Stat label="Money saved" value={formatGBP(saved)} highlight />}
+          {units !== null && <Stat label="Units avoided" value={String(Math.round(units))} />}
         </div>
-        <Stat label="Best streak" value={`${best}d`} />
-        <Stat label="Clean days" value={String(clean)} />
-        <Stat label="Slips" value={String(slips)} />
+        {milestone && streak > 0 && (
+          <p className="text-xs text-muted-foreground">
+            Next milestone: <span className="font-medium text-foreground">{milestone.at} days</span> — {milestone.daysToGo} to go
+          </p>
+        )}
       </div>
     )
   }
@@ -220,6 +233,10 @@ function GoalStats({ goal, goalEntries }: { goal: Goal; goalEntries: GoalEntry[]
       {progress.daysLeft !== null && <Stat label="Days left" value={String(Math.max(0, progress.daysLeft))} />}
     </div>
   )
+}
+
+function formatGBP(amount: number): string {
+  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(amount)
 }
 
 function TargetChart({ goal, goalEntries }: { goal: Goal; goalEntries: GoalEntry[] }) {

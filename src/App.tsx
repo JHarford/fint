@@ -1,11 +1,17 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { InputTab } from '@/components/input/input-tab'
-import { DashboardTab } from '@/components/dashboard/dashboard-tab'
-import { TransactionsTab } from '@/components/transactions/transactions-tab'
 import { TodayTab } from '@/components/planner/today-tab'
-import { GoalsTab } from '@/components/planner/goals-tab'
 import { CalendarTab } from '@/components/planner/calendar-tab'
+
+// Heavy tabs (charts, CSV tooling) load on demand to keep first paint fast
+const GoalsTab = lazy(() => import('@/components/planner/goals-tab').then(m => ({ default: m.GoalsTab })))
+const DashboardTab = lazy(() => import('@/components/dashboard/dashboard-tab').then(m => ({ default: m.DashboardTab })))
+const TransactionsTab = lazy(() => import('@/components/transactions/transactions-tab').then(m => ({ default: m.TransactionsTab })))
+const InputTab = lazy(() => import('@/components/input/input-tab').then(m => ({ default: m.InputTab })))
+
+function TabLoading() {
+  return <p className="text-sm text-muted-foreground animate-pulse py-8 text-center">Loading…</p>
+}
 import { useSources } from '@/hooks/use-sources'
 import { useTransactions } from '@/hooks/use-transactions'
 import { useRecurringItems } from '@/hooks/use-recurring-items'
@@ -130,35 +136,43 @@ function App() {
           </TabsContent>
 
           <TabsContent value="goals">
-            <GoalsTab
-              goals={goals}
-              entries={goalEntries}
-              createGoal={createGoal}
-              updateGoal={updateGoal}
-              removeGoal={removeGoal}
-            />
+            <Suspense fallback={<TabLoading />}>
+              <GoalsTab
+                goals={goals}
+                entries={goalEntries}
+                createGoal={createGoal}
+                updateGoal={updateGoal}
+                removeGoal={removeGoal}
+              />
+            </Suspense>
           </TabsContent>
 
           <TabsContent value="dashboard">
-            <DashboardTab
-              sources={sources}
-              transactions={transactions}
-              recurringItems={recurringItems}
-              futureObligations={futureObligations}
-              categoryBudgets={categoryBudgets}
-              balances={balances}
-              debts={debts}
-              assets={assets}
-              forecastMonths={forecastMonths}
-            />
+            <Suspense fallback={<TabLoading />}>
+              <DashboardTab
+                sources={sources}
+                transactions={transactions}
+                recurringItems={recurringItems}
+                futureObligations={futureObligations}
+                categoryBudgets={categoryBudgets}
+                balances={balances}
+                debts={debts}
+                assets={assets}
+                forecastMonths={forecastMonths}
+              />
+            </Suspense>
           </TabsContent>
 
           <TabsContent value="transactions">
-            <TransactionsTab />
+            <Suspense fallback={<TabLoading />}>
+              <TransactionsTab />
+            </Suspense>
           </TabsContent>
 
           <TabsContent value="input">
-            <InputTab />
+            <Suspense fallback={<TabLoading />}>
+              <InputTab />
+            </Suspense>
           </TabsContent>
         </Tabs>
       </main>

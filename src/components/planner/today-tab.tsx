@@ -3,7 +3,7 @@ import { format, parseISO } from 'date-fns'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Check, Flame, Pencil, Plus, Trophy, X } from 'lucide-react'
+import { Check, Flame, MessageSquarePlus, Pencil, Plus, Trophy, X } from 'lucide-react'
 import type { CoachMessage, Goal, GoalEntry } from '@/types'
 import {
   currentStreak, entriesForGoal, entryByDate, lastNDays, latestValue,
@@ -98,6 +98,20 @@ function GoalRow({ goal, goalEntries, log, removeEntry }: GoalRowProps) {
   const byDate = entryByDate(goalEntries)
   const today = todayKey()
   const todayEntry = byDate.get(today)
+  const [noteOpen, setNoteOpen] = useState(false)
+  const [noteText, setNoteText] = useState('')
+
+  const openNote = () => {
+    setNoteText(todayEntry?.note ?? '')
+    setNoteOpen(true)
+  }
+
+  const saveNote = async () => {
+    if (todayEntry) {
+      await log(goal.id, today, Number(todayEntry.value), noteText.trim())
+    }
+    setNoteOpen(false)
+  }
 
   // Tap a day to cycle its state. Abstinence has an explicit "slipped" state so a
   // bad day can be recorded honestly; habits are just done/not done.
@@ -130,12 +144,43 @@ function GoalRow({ goal, goalEntries, log, removeEntry }: GoalRowProps) {
         {goal.goal_type !== 'target' ? (
           <div className="flex items-center justify-between gap-3 w-full sm:w-auto">
             <WeekStrip goal={goal} byDate={byDate} onCycle={cycle} />
-            <CheckButton goal={goal} todayEntry={todayEntry} onCycle={() => cycle(today)} />
+            <div className="flex items-center gap-1">
+              <CheckButton goal={goal} todayEntry={todayEntry} onCycle={() => cycle(today)} />
+              {todayEntry && !todayEntry.note && !noteOpen && (
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground" title="Add a note about today" onClick={openNote}>
+                  <MessageSquarePlus className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
           </div>
         ) : (
           <TargetLogger goal={goal} todayEntry={todayEntry} goalEntries={goalEntries} log={log} />
         )}
       </div>
+
+      {/* Today's note: shown once saved, tap to edit */}
+      {todayEntry && !noteOpen && todayEntry.note && (
+        <button
+          className="text-xs italic text-muted-foreground text-left sm:pl-12 hover:text-foreground transition-colors"
+          title="Edit note"
+          onClick={openNote}
+        >
+          “{todayEntry.note}”
+        </button>
+      )}
+      {todayEntry && noteOpen && (
+        <div className="flex items-center gap-1.5 sm:pl-12">
+          <Input
+            autoFocus
+            value={noteText}
+            onChange={e => setNoteText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') saveNote(); if (e.key === 'Escape') setNoteOpen(false) }}
+            placeholder="How did today go?"
+            className="h-8 text-sm"
+          />
+          <Button size="sm" className="h-8" onClick={saveNote}>Save</Button>
+        </div>
+      )}
 
       {goal.goal_type === 'target' && <TargetProgressBar goal={goal} goalEntries={goalEntries} />}
     </Card>
