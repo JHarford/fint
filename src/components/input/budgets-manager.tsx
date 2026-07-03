@@ -136,7 +136,7 @@ export function BudgetsManager() {
                       const editVal = edits[b.id]
                       const dirty = editVal !== undefined && editVal !== String(b.monthly_amount)
                       return (
-                        <div key={b.id} className="grid grid-cols-[1fr_140px_90px_40px] gap-2 items-center px-3 py-2 text-sm">
+                        <div key={b.id} className="grid grid-cols-[1fr_90px_70px_32px] sm:grid-cols-[1fr_140px_90px_40px] gap-2 items-center px-3 py-2 text-sm">
                           <span className="text-muted-foreground">
                             {b.subcategory || <em className="text-xs">(category total)</em>}
                           </span>

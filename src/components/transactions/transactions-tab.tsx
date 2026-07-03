@@ -122,7 +122,7 @@ export function TransactionsTab() {
       <CardHeader>
         <CardTitle className="flex items-center justify-between flex-wrap gap-2">
           <span>All Transactions</span>
-          <div className="flex items-center gap-2 text-sm font-normal">
+          <div className="flex flex-wrap items-center gap-2 text-sm font-normal">
             <Badge variant="secondary">{stats.count} txs</Badge>
             <Badge variant="outline" className="text-emerald-600">+{formatCurrency(stats.inn)}</Badge>
             <Badge variant="outline" className="text-red-600">-{formatCurrency(stats.out)}</Badge>
@@ -134,67 +134,75 @@ export function TransactionsTab() {
       <CardContent className="space-y-4">
         {/* Filter row 1 */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search className="absolute left-2 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
             <Input
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(0) }}
               placeholder="Search memo / category…"
-              className="h-9 w-64 pl-7"
+              className="h-9 w-full sm:w-64 pl-7"
             />
           </div>
-          <Select value={typeFilter} onValueChange={v => { setTypeFilter(v as TypeFilter); setPage(0) }}>
-            <SelectTrigger className="h-9 w-32"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All types</SelectItem>
-              <SelectItem value="expense">Expenses</SelectItem>
-              <SelectItem value="income">Income</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={recurrenceFilter} onValueChange={v => { setRecurrenceFilter(v as typeof recurrenceFilter); setPage(0) }}>
-            <SelectTrigger className="h-9 w-44"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All recurrence states</SelectItem>
-              <SelectItem value="tagged">Tagged recurring</SelectItem>
-              <SelectItem value="untagged">Not tagged</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button size="sm" variant="default" onClick={() => setSuggestOpen(true)} className="h-9">
-            <Sparkles className="w-3.5 h-3.5 mr-1" /> Suggest recurring
-          </Button>
-          <Input
-            type="number"
-            value={minAmount}
-            onChange={e => { setMinAmount(e.target.value); setPage(0) }}
-            placeholder="Min £"
-            className="h-9 w-24"
-          />
-          <span className="text-muted-foreground text-sm">–</span>
-          <Input
-            type="number"
-            value={maxAmount}
-            onChange={e => { setMaxAmount(e.target.value); setPage(0) }}
-            placeholder="Max £"
-            className="h-9 w-24"
-          />
-          <Input
-            type="month"
-            value={fromMonth}
-            onChange={e => { setFromMonth(e.target.value); setPage(0) }}
-            className="h-9 w-40"
-            title="From month"
-          />
-          <span className="text-muted-foreground text-sm">→</span>
-          <Input
-            type="month"
-            value={toMonth}
-            onChange={e => { setToMonth(e.target.value); setPage(0) }}
-            className="h-9 w-40"
-            title="To month"
-          />
-          <Button variant="ghost" size="sm" onClick={resetFilters} className="h-9">
-            <X className="w-3.5 h-3.5 mr-1" /> Reset
-          </Button>
+          <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto">
+            <Select value={typeFilter} onValueChange={v => { setTypeFilter(v as TypeFilter); setPage(0) }}>
+              <SelectTrigger className="h-9 w-full sm:w-32"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                <SelectItem value="expense">Expenses</SelectItem>
+                <SelectItem value="income">Income</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={recurrenceFilter} onValueChange={v => { setRecurrenceFilter(v as typeof recurrenceFilter); setPage(0) }}>
+              <SelectTrigger className="h-9 w-full sm:w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All recurrence states</SelectItem>
+                <SelectItem value="tagged">Tagged recurring</SelectItem>
+                <SelectItem value="untagged">Not tagged</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              value={minAmount}
+              onChange={e => { setMinAmount(e.target.value); setPage(0) }}
+              placeholder="Min £"
+              className="h-9 w-24"
+            />
+            <span className="text-muted-foreground text-sm">–</span>
+            <Input
+              type="number"
+              value={maxAmount}
+              onChange={e => { setMaxAmount(e.target.value); setPage(0) }}
+              placeholder="Max £"
+              className="h-9 w-24"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              type="month"
+              value={fromMonth}
+              onChange={e => { setFromMonth(e.target.value); setPage(0) }}
+              className="h-9 w-36 sm:w-40"
+              title="From month"
+            />
+            <span className="text-muted-foreground text-sm">→</span>
+            <Input
+              type="month"
+              value={toMonth}
+              onChange={e => { setToMonth(e.target.value); setPage(0) }}
+              className="h-9 w-36 sm:w-40"
+              title="To month"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="default" onClick={() => setSuggestOpen(true)} className="h-9">
+              <Sparkles className="w-3.5 h-3.5 mr-1" /> Suggest recurring
+            </Button>
+            <Button variant="ghost" size="sm" onClick={resetFilters} className="h-9">
+              <X className="w-3.5 h-3.5 mr-1" /> Reset
+            </Button>
+          </div>
         </div>
 
         {/* Account chips */}
@@ -233,9 +241,9 @@ export function TransactionsTab() {
           })}
         </div>
 
-        {/* Table */}
+        {/* Table: 7-column grid on desktop, stacked cards on mobile */}
         <div className="border rounded-md overflow-hidden">
-          <div className="grid grid-cols-[90px_140px_1fr_120px_140px_100px_140px] gap-2 px-3 py-2 text-xs font-medium text-muted-foreground bg-muted/40 border-b">
+          <div className="hidden md:grid grid-cols-[90px_140px_1fr_120px_140px_100px_140px] gap-2 px-3 py-2 text-xs font-medium text-muted-foreground bg-muted/40 border-b">
             <span>Date</span>
             <span>Account</span>
             <span>Memo</span>
@@ -249,41 +257,69 @@ export function TransactionsTab() {
               const meta = CATEGORY_META[categoryOrUncategorised(t.category)]
               const Icon = meta.icon
               const rec: Recurrence | 'none' = t.recurrence ?? 'none'
+              const recurrenceSelect = (
+                <Select
+                  value={rec}
+                  onValueChange={v => setRowRecurrence(t.id, v === 'none' ? null : v as Recurrence)}
+                >
+                  <SelectTrigger className="h-7 text-xs px-2" title={t.recurrence_group ? `Group: ${t.recurrence_group}` : 'Not recurring'}>
+                    <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${RECURRENCE_STYLES[rec]}`}>
+                      <Repeat className="w-2.5 h-2.5" />
+                      <span className="font-medium">{RECURRENCE_LABELS[rec]}</span>
+                      {t.recurrence_group && (
+                        <span className="opacity-75 truncate max-w-[70px]">· {t.recurrence_group}</span>
+                      )}
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— Clear</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="quarterly">Quarterly</SelectItem>
+                    <SelectItem value="annually">Annually</SelectItem>
+                    <SelectItem value="one-off">One-off</SelectItem>
+                  </SelectContent>
+                </Select>
+              )
               return (
-                <div key={t.id} className="grid grid-cols-[90px_140px_1fr_120px_140px_100px_140px] gap-2 px-3 py-2 items-center border-b text-sm">
-                  <span className="text-xs text-muted-foreground tabular-nums">{format(parseISO(t.date), 'd MMM yy')}</span>
-                  <span className="text-xs truncate" title={sourceById[t.source_id]?.name}>{sourceById[t.source_id]?.name}</span>
-                  <span className="truncate" title={t.memo}>{t.memo}</span>
-                  <span className="flex items-center gap-1.5 text-xs">
-                    <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
-                    <span className="truncate">{t.category || UNCATEGORISED}</span>
-                  </span>
-                  <span className="text-xs text-muted-foreground truncate">{t.subcategory || '—'}</span>
-                  <span className={`text-right tabular-nums ${t.amount < 0 ? 'text-emerald-600' : ''}`}>
-                    {formatCurrency(t.amount)}
-                  </span>
-                  <Select
-                    value={rec}
-                    onValueChange={v => setRowRecurrence(t.id, v === 'none' ? null : v as Recurrence)}
-                  >
-                    <SelectTrigger className="h-7 text-xs px-2" title={t.recurrence_group ? `Group: ${t.recurrence_group}` : 'Not recurring'}>
-                      <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${RECURRENCE_STYLES[rec]}`}>
-                        <Repeat className="w-2.5 h-2.5" />
-                        <span className="font-medium">{RECURRENCE_LABELS[rec]}</span>
-                        {t.recurrence_group && (
-                          <span className="opacity-75 truncate max-w-[70px]">· {t.recurrence_group}</span>
-                        )}
+                <div key={t.id} className="border-b">
+                  {/* Desktop row */}
+                  <div className="hidden md:grid grid-cols-[90px_140px_1fr_120px_140px_100px_140px] gap-2 px-3 py-2 items-center text-sm">
+                    <span className="text-xs text-muted-foreground tabular-nums">{format(parseISO(t.date), 'd MMM yy')}</span>
+                    <span className="text-xs truncate" title={sourceById[t.source_id]?.name}>{sourceById[t.source_id]?.name}</span>
+                    <span className="truncate" title={t.memo}>{t.memo}</span>
+                    <span className="flex items-center gap-1.5 text-xs">
+                      <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
+                      <span className="truncate">{t.category || UNCATEGORISED}</span>
+                    </span>
+                    <span className="text-xs text-muted-foreground truncate">{t.subcategory || '—'}</span>
+                    <span className={`text-right tabular-nums ${t.amount < 0 ? 'text-emerald-600' : ''}`}>
+                      {formatCurrency(t.amount)}
+                    </span>
+                    {recurrenceSelect}
+                  </div>
+                  {/* Mobile card */}
+                  <div className="md:hidden px-3 py-2.5 space-y-1.5">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-sm font-medium truncate min-w-0">{t.memo}</span>
+                      <span className={`text-sm tabular-nums shrink-0 ${t.amount < 0 ? 'text-emerald-600' : ''}`}>
+                        {formatCurrency(t.amount)}
                       </span>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">— Clear</SelectItem>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                      <SelectItem value="quarterly">Quarterly</SelectItem>
-                      <SelectItem value="annually">Annually</SelectItem>
-                      <SelectItem value="one-off">One-off</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1 min-w-0">
+                        <Icon className={`w-3 h-3 shrink-0 ${meta.color}`} />
+                        <span className="truncate">
+                          {t.category || UNCATEGORISED}
+                          {t.subcategory ? ` · ${t.subcategory}` : ''}
+                        </span>
+                      </span>
+                      <span className="shrink-0 tabular-nums">
+                        {format(parseISO(t.date), 'd MMM')} · {sourceById[t.source_id]?.name}
+                      </span>
+                    </div>
+                    <div className="pt-0.5">{recurrenceSelect}</div>
+                  </div>
                 </div>
               )
             })}

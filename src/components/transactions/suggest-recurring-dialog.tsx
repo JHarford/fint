@@ -203,7 +203,8 @@ export function SuggestRecurringDialog({ open, onClose, transactions, onApply }:
                 </div>
               </div>
 
-              <div className="border rounded-md overflow-hidden">
+              <div className="border rounded-md overflow-x-auto">
+                <div className="min-w-[620px]">
                 <div className="grid grid-cols-[28px_minmax(240px,1fr)_100px_90px_90px_60px] gap-3 px-3 py-2 text-xs font-medium text-muted-foreground bg-muted/40 border-b">
                   <span></span>
                   <span>Group</span>
@@ -239,6 +240,7 @@ export function SuggestRecurringDialog({ open, onClose, transactions, onApply }:
                       <span className="text-right tabular-nums text-muted-foreground">{g.memberIds.length}</span>
                     </div>
                   ))}
+                </div>
                 </div>
               </div>
 

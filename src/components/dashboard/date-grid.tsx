@@ -252,16 +252,17 @@ export function DateGrid({ transactions, recurringItems, futureObligations, cate
         <div className="min-w-max">
           {/* Header row with view toggle on the right */}
           <div className="flex border-b bg-muted/50">
-            <div className="w-48 shrink-0 px-3 py-1.5 border-r sticky left-0 z-10 bg-background/60 backdrop-blur-sm flex items-center gap-1">
+            <div className="w-36 sm:w-48 shrink-0 px-3 py-1.5 border-r sticky left-0 z-10 bg-background/60 backdrop-blur-sm flex items-center gap-1">
               {(['daily', 'weekly', 'monthly'] as ViewMode[]).map(mode => (
                 <Button
                   key={mode}
                   variant={viewMode === mode ? 'default' : 'outline'}
                   size="sm"
-                  className="h-6 px-2 text-xs"
+                  className="h-6 px-1.5 sm:px-2 text-xs"
                   onClick={() => setViewMode(mode)}
                 >
-                  {mode === 'daily' ? 'Days' : mode === 'weekly' ? 'Weeks' : 'Months'}
+                  <span className="sm:hidden">{mode === 'daily' ? 'D' : mode === 'weekly' ? 'W' : 'M'}</span>
+                  <span className="hidden sm:inline">{mode === 'daily' ? 'Days' : mode === 'weekly' ? 'Weeks' : 'Months'}</span>
                 </Button>
               ))}
             </div>
@@ -283,7 +284,7 @@ export function DateGrid({ transactions, recurringItems, futureObligations, cate
 
           {/* Cash Movement row */}
           <div className="flex border-b">
-            <div className="w-48 shrink-0 px-3 py-2 text-sm font-medium border-r bg-background/60 backdrop-blur-sm sticky left-0 z-10">Cash Movement</div>
+            <div className="w-36 sm:w-48 shrink-0 px-3 py-2 text-sm font-medium border-r bg-background/60 backdrop-blur-sm sticky left-0 z-10">Cash Movement</div>
             {columnData.map((data, i) => (
               <div
                 key={i}
@@ -300,7 +301,7 @@ export function DateGrid({ transactions, recurringItems, futureObligations, cate
 
           {/* Running Balance row */}
           <div className="flex border-b">
-            <div className="w-48 shrink-0 px-3 py-2 text-sm font-medium border-r bg-background/60 backdrop-blur-sm sticky left-0 z-10">Running Balance</div>
+            <div className="w-36 sm:w-48 shrink-0 px-3 py-2 text-sm font-medium border-r bg-background/60 backdrop-blur-sm sticky left-0 z-10">Running Balance</div>
             {columnData.map((data, i) => (
               <div
                 key={i}
@@ -317,7 +318,7 @@ export function DateGrid({ transactions, recurringItems, futureObligations, cate
 
           {/* Movement % row */}
           <div className="flex border-b">
-            <div className="w-48 shrink-0 px-3 py-2 text-sm font-medium border-r bg-background/60 backdrop-blur-sm sticky left-0 z-10">Movement %</div>
+            <div className="w-36 sm:w-48 shrink-0 px-3 py-2 text-sm font-medium border-r bg-background/60 backdrop-blur-sm sticky left-0 z-10">Movement %</div>
             {columnData.map((data, i) => (
               <div
                 key={i}
@@ -340,7 +341,7 @@ export function DateGrid({ transactions, recurringItems, futureObligations, cate
             <Collapsible open={debtsOpen} onOpenChange={setDebtsOpen}>
               <CollapsibleTrigger asChild>
                 <div className="flex border-b cursor-pointer hover:bg-muted/20">
-                  <div className="w-48 shrink-0 px-3 py-2 text-sm font-semibold border-r bg-background/60 backdrop-blur-sm flex items-center gap-1 sticky left-0 z-10">
+                  <div className="w-36 sm:w-48 shrink-0 px-3 py-2 text-sm font-semibold border-r bg-background/60 backdrop-blur-sm flex items-center gap-1 sticky left-0 z-10">
                     {debtsOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                     Debts
                   </div>
@@ -352,7 +353,7 @@ export function DateGrid({ transactions, recurringItems, futureObligations, cate
               <CollapsibleContent>
                 {debts.map((debt, debtIdx) => (
                   <div key={debt.id} className="flex border-b">
-                    <div className="w-48 shrink-0 px-3 py-1 text-xs border-r pl-8 truncate sticky left-0 z-10 bg-background/60 backdrop-blur-sm" title={debt.name}>
+                    <div className="w-36 sm:w-48 shrink-0 px-3 py-1 text-xs border-r pl-8 truncate sticky left-0 z-10 bg-background/60 backdrop-blur-sm" title={debt.name}>
                       {debt.name}
                     </div>
                     {columns.map((_, i) => {
@@ -380,7 +381,7 @@ export function DateGrid({ transactions, recurringItems, futureObligations, cate
                   className="flex border-b cursor-pointer hover:bg-muted/30 bg-muted/10"
                   onClick={() => toggleCategory(cat.name)}
                 >
-                  <div className="w-48 shrink-0 px-3 py-1.5 text-sm font-semibold border-r bg-background/60 backdrop-blur-sm flex items-center gap-1.5 sticky left-0 z-10">
+                  <div className="w-36 sm:w-48 shrink-0 px-3 py-1.5 text-sm font-semibold border-r bg-background/60 backdrop-blur-sm flex items-center gap-1.5 sticky left-0 z-10">
                     {isCatOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                     <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
                     <span>{cat.name}</span>
@@ -406,7 +407,7 @@ export function DateGrid({ transactions, recurringItems, futureObligations, cate
                         className="flex border-b cursor-pointer hover:bg-muted/20"
                         onClick={() => toggleSub(subKey)}
                       >
-                        <div className="w-48 shrink-0 px-3 py-1 text-xs border-r bg-background/60 backdrop-blur-sm flex items-center gap-1 pl-8 sticky left-0 z-10">
+                        <div className="w-36 sm:w-48 shrink-0 px-3 py-1 text-xs border-r bg-background/60 backdrop-blur-sm flex items-center gap-1 pl-8 sticky left-0 z-10">
                           {isSubOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
                           <span className="font-medium text-muted-foreground">{sub.name}</span>
                         </div>
@@ -424,7 +425,7 @@ export function DateGrid({ transactions, recurringItems, futureObligations, cate
                       </div>
                       {isSubOpen && sub.items.map(item => (
                         <div key={item.name} className="flex border-b">
-                          <div className="w-48 shrink-0 px-3 py-1 text-xs border-r pl-14 truncate sticky left-0 z-10 bg-background/60 backdrop-blur-sm" title={item.name}>
+                          <div className="w-36 sm:w-48 shrink-0 px-3 py-1 text-xs border-r pl-14 truncate sticky left-0 z-10 bg-background/60 backdrop-blur-sm" title={item.name}>
                             {item.hasActual ? item.name : <span className="text-muted-foreground italic">{item.name}</span>}
                           </div>
                           {columns.map((_, i) => {

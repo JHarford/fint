@@ -128,6 +128,66 @@ export interface Asset {
   created_at: string
 }
 
+export type GoalType = 'abstinence' | 'habit' | 'target'
+
+export interface Goal {
+  id: string
+  name: string
+  description: string
+  goal_type: GoalType
+  icon: string
+  color: string
+  start_date: string
+  frequency_per_week: number | null
+  start_value: number
+  target_value: number | null
+  unit: string
+  target_date: string | null
+  // abstinence goals: what the habit used to cost, for money-saved / units-avoided stats
+  weekly_spend: number | null
+  weekly_units: number | null
+  is_active: boolean
+  sort_order: number
+  created_at: string
+}
+
+// One entry per goal per day.
+// abstinence: value 1 = clean day, 0 = slip. habit: value 1 = done. target: value = measured amount.
+export interface GoalEntry {
+  id: string
+  goal_id: string
+  date: string
+  value: number
+  note: string
+  created_at: string
+}
+
+export type CalendarEntryType = 'event' | 'birthday' | 'reminder' | 'task'
+export type ExternalSource = 'user' | 'droplet' | 'ai'
+
+export interface CalendarEntry {
+  id: string
+  title: string
+  date: string
+  event_time: string // "HH:MM", empty = all-day
+  entry_type: CalendarEntryType
+  notes: string
+  recurs_annually: boolean
+  is_done: boolean
+  source: ExternalSource
+  created_at: string
+}
+
+export interface CoachMessage {
+  id: string
+  message: string
+  context: string
+  goal_id: string | null
+  source: 'rule' | 'ai' | 'droplet'
+  is_read: boolean
+  created_at: string
+}
+
 // For CSV upload preview
 export interface CsvRow {
   number: string

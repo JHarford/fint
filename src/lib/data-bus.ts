@@ -4,6 +4,8 @@
 export type Topic = 'transactions' | 'category_rules' | 'sources' | 'balances'
   | 'recurring_items' | 'debts' | 'assets' | 'savings_buckets'
   | 'future_obligations' | 'category_budgets'
+  | 'goals' | 'goal_entries'
+  | 'calendar_entries' | 'coach_messages'
 
 type Listener = () => void
 const listeners = new Map<Topic, Set<Listener>>()

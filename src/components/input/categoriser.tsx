@@ -321,7 +321,8 @@ export function Categoriser() {
           </div>
         )}
 
-        <div className="border rounded-md overflow-hidden">
+        <div className="border rounded-md overflow-x-auto">
+          <div className="min-w-[640px]">
           <div className="grid grid-cols-[36px_90px_1fr_90px_160px_180px] gap-2 px-3 py-2 text-xs font-medium text-muted-foreground bg-muted/40 border-b">
             <input
               type="checkbox"
@@ -379,6 +380,7 @@ export function Categoriser() {
                 Nothing matches.
               </div>
             )}
+          </div>
           </div>
         </div>
 
