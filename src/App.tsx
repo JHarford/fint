@@ -105,6 +105,9 @@ function App() {
         <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-baseline gap-2.5">
             <h1 className="font-display text-2xl font-semibold text-primary">LifeFlow</h1>
+            <span className="text-[10px] text-muted-foreground tabular-nums" title={`Build ${__COMMIT_SHA__}`}>
+              v{__APP_VERSION__} · {__COMMIT_SHA__}
+            </span>
             <span className="text-xs text-muted-foreground italic font-display hidden sm:inline">one day at a time</span>
           </div>
           <div className="flex items-center gap-3">
