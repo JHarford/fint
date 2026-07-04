@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
+import { format, parseISO } from 'date-fns'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ChevronLeft, ChevronRight, Target } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, Target, TrendingDown, TrendingUp } from 'lucide-react'
 import { CATEGORIES, CATEGORY_META, UNCATEGORISED } from '@/lib/categories'
 import type { Transaction, CategoryBudget } from '@/types'
 
@@ -13,6 +14,7 @@ interface Props {
 
 export function MonthlyAnalysis({ transactions, categoryBudgets }: Props) {
   const [offset, setOffset] = useState(0) // 0 = current month, -1 = previous, etc.
+  const [openCategory, setOpenCategory] = useState<string | null>(null)
 
   const monthKey = useMemo(() => {
     const d = new Date()
@@ -27,6 +29,23 @@ export function MonthlyAnalysis({ transactions, categoryBudgets }: Props) {
       return d.getFullYear() === monthKey.year && d.getMonth() === monthKey.month
     })
   }, [transactions, monthKey])
+
+  // Previous month's spend per category, for the up/down comparison
+  const prevSpendByCategory = useMemo(() => {
+    const d = new Date()
+    d.setDate(1)
+    d.setMonth(d.getMonth() + offset - 1)
+    const y = d.getFullYear(), m = d.getMonth()
+    const map = new Map<string, number>()
+    for (const t of transactions) {
+      if (t.amount <= 0) continue
+      const td = new Date(t.date)
+      if (td.getFullYear() !== y || td.getMonth() !== m) continue
+      const cat = t.category || UNCATEGORISED
+      map.set(cat, (map.get(cat) ?? 0) + t.amount)
+    }
+    return map
+  }, [transactions, offset])
 
   // Spend = positive amounts (money out). Income = negative.
   const spendByCategory = useMemo(() => {
@@ -116,19 +135,43 @@ export function MonthlyAnalysis({ transactions, categoryBudgets }: Props) {
               const catBudget = budgets.perCategory.get(c.category) ?? 0
               const catDelta = c.total - catBudget
               const catOverBudget = catBudget > 0 && catDelta > 0
+              const prev = prevSpendByCategory.get(c.category) ?? 0
+              const changePct = prev > 0 ? ((c.total - prev) / prev) * 100 : null
+              const isOpen = openCategory === c.category
+              const catTxs = isOpen
+                ? monthTxs
+                    .filter(t => t.amount > 0 && (t.category || UNCATEGORISED) === c.category)
+                    .sort((a, b) => b.amount - a.amount)
+                : []
               return (
                 <div key={c.category} className="border rounded-lg p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={`p-2 rounded-md ${meta.bg}`}>
+                  <button
+                    className="flex items-center justify-between w-full text-left"
+                    onClick={() => setOpenCategory(isOpen ? null : c.category)}
+                    title="Show the transactions behind this number"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className={`p-2 rounded-md shrink-0 ${meta.bg}`}>
                         <Icon className={`w-4 h-4 ${meta.color}`} />
                       </div>
-                      <div>
-                        <div className="font-medium text-sm">{c.category}</div>
-                        <div className="text-xs text-muted-foreground">{c.count} txs · {pct.toFixed(0)}%</div>
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm flex items-center gap-1">
+                          <span className="truncate">{c.category}</span>
+                          <ChevronDown className={`w-3 h-3 text-muted-foreground shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                        </div>
+                        <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                          {c.count} txs · {pct.toFixed(0)}%
+                          {changePct !== null && Math.abs(changePct) >= 1 && (
+                            <span className={`inline-flex items-center gap-0.5 font-medium ${changePct > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                              {changePct > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                              {Math.abs(changePct) >= 200 ? '>200' : Math.abs(changePct).toFixed(0)}%
+                            </span>
+                          )}
+                          {changePct === null && prev === 0 && <span className="text-[10px] uppercase">new</span>}
+                        </div>
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right shrink-0">
                       <div className="font-semibold tabular-nums">{formatCurrency(c.total)}</div>
                       {catBudget > 0 && (
                         <div className={`text-xs tabular-nums ${catOverBudget ? 'text-red-600' : 'text-emerald-600'}`}>
@@ -136,7 +179,7 @@ export function MonthlyAnalysis({ transactions, categoryBudgets }: Props) {
                         </div>
                       )}
                     </div>
-                  </div>
+                  </button>
                   {catBudget > 0 ? (
                     <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden relative">
                       <div className={`h-full ${catOverBudget ? 'bg-red-500' : meta.bar}`} style={{ width: `${Math.min(100, (c.total / catBudget) * 100)}%` }} />
@@ -168,6 +211,22 @@ export function MonthlyAnalysis({ transactions, categoryBudgets }: Props) {
                       })}
                       {c.subs.length > 6 && (
                         <div className="text-xs text-muted-foreground italic">+{c.subs.length - 6} more…</div>
+                      )}
+                    </div>
+                  )}
+                  {isOpen && (
+                    <div className="pt-2 mt-1 border-t space-y-1 animate-in fade-in slide-in-from-top-1 duration-200 max-h-56 overflow-y-auto">
+                      {catTxs.map(t => (
+                        <div key={t.id} className="flex items-center justify-between gap-2 text-xs">
+                          <div className="min-w-0">
+                            <div className="truncate">{t.memo || t.subcategory || '(no memo)'}</div>
+                            <div className="text-[10px] text-muted-foreground">{format(parseISO(t.date), 'EEE d MMM')}</div>
+                          </div>
+                          <span className="tabular-nums font-medium shrink-0">{formatCurrency(t.amount)}</span>
+                        </div>
+                      ))}
+                      {catTxs.length === 0 && (
+                        <div className="text-xs text-muted-foreground italic">No transactions.</div>
                       )}
                     </div>
                   )}

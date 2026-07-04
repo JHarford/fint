@@ -194,6 +194,50 @@ export function DebtManager() {
         ) : debts.length === 0 ? (
           <p className="text-muted-foreground text-sm">No debts tracked. Add your first debt.</p>
         ) : (
+          <>
+          {/* Mobile: vertical card list — tap a debt to edit it */}
+          <div className="md:hidden space-y-2">
+            {debts.map(debt => {
+              const linked = getLinkedItem(debt.recurring_item_id)
+              const payoff = calcPayoff(debt.current_balance, linked, debt.interest_rate || 0)
+              return (
+                <div key={debt.id} className="border rounded-lg overflow-hidden">
+                  <button
+                    className="w-full flex items-center justify-between gap-2 p-3 text-left active:bg-muted/50"
+                    onClick={() => handleEdit(debt)}
+                  >
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm truncate">{debt.name}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 mr-1.5">{debtTypeLabels[debt.type]}</Badge>
+                        {debt.interest_rate ? `${debt.interest_rate}% · ` : ''}
+                        {linked ? `${formatCurrency(linked.amount)}/${linked.frequency.slice(0, 2)}` : 'no payment linked'}
+                      </div>
+                      {payoff ? (
+                        <div className="text-[11px] text-muted-foreground">Paid off {payoff.date} ({payoff.months}mo)</div>
+                      ) : linked ? (
+                        <div className="text-[11px] text-red-600">Payment doesn't cover interest</div>
+                      ) : null}
+                    </div>
+                    <span className="font-semibold tabular-nums text-red-600 shrink-0">{formatCurrency(debt.current_balance)}</span>
+                  </button>
+                  <div className="flex items-center justify-between px-3 pb-1.5 -mt-1">
+                    <button
+                      onClick={() => toggleNetWorth(debt)}
+                      className={`text-[10px] px-2 py-0.5 rounded ${debt.include_in_net_worth ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'}`}
+                    >
+                      {debt.include_in_net_worth ? 'In net worth' : 'Excluded'}
+                    </button>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => remove(debt.id)}>
+                      <Trash2 className="w-3 h-3 mr-1" /> Delete
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          {/* Desktop: full table */}
+          <div className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -260,6 +304,8 @@ export function DebtManager() {
               })}
             </TableBody>
           </Table>
+          </div>
+          </>
         )}
       </CardContent>
     </Card>

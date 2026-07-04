@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -11,6 +11,7 @@ import { useTransactions } from '@/hooks/use-transactions'
 import { useSources } from '@/hooks/use-sources'
 import { CATEGORIES, CATEGORY_META, UNCATEGORISED, categoryOrUncategorised } from '@/lib/categories'
 import { SuggestRecurringDialog, type ApplyGroup } from './suggest-recurring-dialog'
+import { consumePendingAction, onNavigate } from '@/lib/nav-bus'
 import type { Recurrence } from '@/types'
 
 const PAGE_SIZE = 200
@@ -43,7 +44,13 @@ export function TransactionsTab() {
   const [toMonth, setToMonth] = useState<string>('')
   const [recurrenceFilter, setRecurrenceFilter] = useState<'all' | 'tagged' | 'untagged'>('all')
   const [page, setPage] = useState(0)
-  const [suggestOpen, setSuggestOpen] = useState(false)
+  // Deep link from CSV upload: land here with the suggest dialog open. The
+  // pending action is consumed lazily on mount (this tab is lazy-mounted) and
+  // via the nav-bus subscription when the tab is already mounted.
+  const [suggestOpen, setSuggestOpen] = useState(() => consumePendingAction('suggest-recurring'))
+  useEffect(() => onNavigate(i => {
+    if (i.tab === 'transactions' && consumePendingAction('suggest-recurring')) setSuggestOpen(true)
+  }), [])
 
   const sourceById = useMemo(() => Object.fromEntries(sources.map(s => [s.id, s])), [sources])
 

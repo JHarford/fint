@@ -101,8 +101,8 @@ export function FutureObligationsManager() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Future Obligations</CardTitle>
+      <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+        <CardTitle>Recurring &amp; Future Items</CardTitle>
         <div className="flex items-center gap-2">
           <Select value={filterActive} onValueChange={v => setFilterActive(v as typeof filterActive)}>
             <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
@@ -117,14 +117,54 @@ export function FutureObligationsManager() {
       </CardHeader>
       <CardContent>
         <p className="text-xs text-muted-foreground mb-3">
-          Forecast-only items with no actual transactions yet (school fees, planned income, etc.).
-          Anything already happening in your imports is derived automatically from tagged recurring transactions.
+          Manually add recurring or one-off items that aren't in your bank imports yet
+          (school fees, planned income, a new subscription…). Anything already happening
+          in your imports is picked up automatically from transactions tagged as recurring.
         </p>
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : filtered.length === 0 ? (
           <p className="text-sm text-muted-foreground">No future obligations.</p>
         ) : (
+          <>
+          {/* Mobile: vertical card list — tap an item to edit it */}
+          <div className="md:hidden space-y-2">
+            {filtered.map(o => (
+              <div key={o.id} className={`border rounded-lg overflow-hidden ${o.is_active ? '' : 'opacity-50'}`}>
+                <button
+                  className="w-full flex items-center justify-between gap-2 p-3 text-left active:bg-muted/50"
+                  onClick={() => startEdit(o)}
+                >
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm truncate">{o.name}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 mr-1.5">{FREQUENCY_LABELS[o.frequency as Recurrence] ?? o.frequency}</Badge>
+                      {o.category}{o.subcategory ? ` / ${o.subcategory}` : ''}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Next {o.next_date}{o.end_date ? ` · ends ${o.end_date}` : ''}
+                      {(o.target_source_id || o.source_id) && (
+                        <> · {o.target_source_id ? `→ ${sourceById[o.target_source_id] ?? ''}` : sourceById[o.source_id ?? ''] ?? ''}</>
+                      )}
+                    </div>
+                  </div>
+                  <span className={`font-semibold tabular-nums shrink-0 ${o.amount < 0 ? 'text-emerald-600' : ''}`}>
+                    {formatCurrency(o.amount)}
+                  </span>
+                </button>
+                <div className="flex items-center justify-end gap-1 px-2 pb-1.5 -mt-1">
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => toggleActive(o)}>
+                    {o.is_active ? <><Eye className="w-3 h-3 mr-1" /> Active</> : <><EyeOff className="w-3 h-3 mr-1" /> Inactive</>}
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => remove(o.id)}>
+                    <Trash2 className="w-3 h-3 mr-1" /> Delete
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Desktop: full table */}
+          <div className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -169,6 +209,8 @@ export function FutureObligationsManager() {
               ))}
             </TableBody>
           </Table>
+          </div>
+          </>
         )}
       </CardContent>
 
