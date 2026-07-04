@@ -67,17 +67,24 @@ export function BudgetsManager() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-xs text-muted-foreground">
-          Monthly spending targets per category and subcategory. Compared against actual spend in Monthly Analysis.
-          Used to project variable spend in the cashflow view (toggle "Variable on").
-        </p>
+        <div className="text-xs text-muted-foreground space-y-1">
+          <p>
+            A budget is what you <em>expect</em> to spend each month on a category
+            (or one subcategory within it). LifeFlow uses them in two places:
+          </p>
+          <ul className="list-disc pl-4 space-y-0.5">
+            <li><strong className="text-foreground font-medium">Monthly Analysis</strong> — each category shows spend vs budget, red when over.</li>
+            <li><strong className="text-foreground font-medium">Cashflow forecast</strong> — with "Variable on", future months assume you spend the budget (minus anything already covered by recurring payments, so nothing is counted twice).</li>
+          </ul>
+          <p>Adding the same category + subcategory again overwrites the old amount.</p>
+        </div>
 
         {/* Add row */}
-        <div className="flex flex-wrap items-end gap-2 p-3 border rounded-md bg-muted/30">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-end gap-2 p-3 border rounded-md bg-muted/30">
           <div className="space-y-1">
             <Label className="text-xs">Category</Label>
             <Select value={newCategory} onValueChange={v => setNewCategory(v as Category)}>
-              <SelectTrigger className="h-9 w-40"><SelectValue placeholder="Pick…" /></SelectTrigger>
+              <SelectTrigger className="h-9 w-full sm:w-40"><SelectValue placeholder="Pick…" /></SelectTrigger>
               <SelectContent>
                 {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
               </SelectContent>
@@ -86,7 +93,7 @@ export function BudgetsManager() {
           <div className="space-y-1">
             <Label className="text-xs">Subcategory (optional)</Label>
             <Input
-              className="h-9 w-44"
+              className="h-9 w-full sm:w-44"
               value={newSub}
               onChange={e => setNewSub(e.target.value)}
               placeholder="e.g. Eating Out"
@@ -97,7 +104,7 @@ export function BudgetsManager() {
             <Input
               type="number"
               step="1"
-              className="h-9 w-28"
+              className="h-9 w-full sm:w-28"
               value={newAmount}
               onChange={e => setNewAmount(e.target.value)}
               placeholder="270"
@@ -128,6 +135,9 @@ export function BudgetsManager() {
                         </div>
                       )}
                       <span className="font-medium text-sm">{g.category}</span>
+                      {g.items.some(b => !b.subcategory) && g.items.some(b => !!b.subcategory) && (
+                        <span className="text-[10px] text-muted-foreground hidden sm:inline">(rest of category) covers spend not listed below</span>
+                      )}
                     </div>
                     <span className="text-sm tabular-nums">{formatCurrency(g.total)}/mo</span>
                   </div>
@@ -138,7 +148,11 @@ export function BudgetsManager() {
                       return (
                         <div key={b.id} className="grid grid-cols-[1fr_90px_70px_32px] sm:grid-cols-[1fr_140px_90px_40px] gap-2 items-center px-3 py-2 text-sm">
                           <span className="text-muted-foreground">
-                            {b.subcategory || <em className="text-xs">(category total)</em>}
+                            {b.subcategory || (
+                              <em className="text-xs">
+                                {g.items.some(x => !!x.subcategory) ? '(rest of category)' : '(whole category)'}
+                              </em>
+                            )}
                           </span>
                           <Input
                             type="number"

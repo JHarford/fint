@@ -139,6 +139,44 @@ export function AssetManager() {
         ) : assets.length === 0 ? (
           <p className="text-muted-foreground text-sm">No assets tracked. Add your first asset.</p>
         ) : (
+          <>
+          {/* Mobile: vertical card list — tap an asset to edit it */}
+          <div className="md:hidden space-y-2">
+            {assets.map(asset => (
+              <div key={asset.id} className="border rounded-lg overflow-hidden">
+                <button
+                  className="w-full flex items-center justify-between gap-2 p-3 text-left active:bg-muted/50"
+                  onClick={() => handleEdit(asset)}
+                >
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm truncate">{asset.name}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 mr-1.5">{assetTypeLabels[asset.type]}</Badge>
+                      {asset.annual_change ? (
+                        <span className={asset.annual_change > 0 ? 'text-green-600' : 'text-red-600'}>
+                          {asset.annual_change > 0 ? '+' : ''}{asset.annual_change}%/yr
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <span className="font-semibold tabular-nums text-green-600 shrink-0">{formatCurrency(asset.current_value)}</span>
+                </button>
+                <div className="flex items-center justify-between px-3 pb-1.5 -mt-1">
+                  <button
+                    onClick={() => toggleNetWorth(asset)}
+                    className={`text-[10px] px-2 py-0.5 rounded ${asset.include_in_net_worth ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'}`}
+                  >
+                    {asset.include_in_net_worth ? 'In net worth' : 'Excluded'}
+                  </button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => remove(asset.id)}>
+                    <Trash2 className="w-3 h-3 mr-1" /> Delete
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Desktop: full table */}
+          <div className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -189,6 +227,8 @@ export function AssetManager() {
               ))}
             </TableBody>
           </Table>
+          </div>
+          </>
         )}
       </CardContent>
     </Card>

@@ -10,6 +10,7 @@ import { useSources } from '@/hooks/use-sources'
 import { useTransactions } from '@/hooks/use-transactions'
 import { useCategoryRules } from '@/hooks/use-category-rules'
 import { parseCsv, findDuplicates } from '@/lib/csv-parser'
+import { navigateTo } from '@/lib/nav-bus'
 import { categoriseTransactions, matchRule, runWithConcurrency, LLM_BATCH_SIZE, LLM_CONCURRENCY } from '@/lib/categoriser'
 import type { CsvRow } from '@/types'
 
@@ -100,13 +101,7 @@ export function CsvUpload() {
       }
 
       setStatus('done')
-      setTimeout(() => {
-        setStatus('idle')
-        setParsedRows([])
-        setNewRows([])
-        setDuplicateCount(0)
-        if (fileInputRef.current) fileInputRef.current.value = ''
-      }, 5000)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to upload')
       setStatus('preview')
@@ -174,14 +169,25 @@ export function CsvUpload() {
         )}
 
         {status === 'done' && (
-          <div className="flex items-center gap-2 text-green-600 text-sm flex-wrap">
-            <CheckCircle2 className="w-4 h-4" />
-            Imported {newRows.length} transactions
-            {categoriseStats && (
-              <span className="text-muted-foreground">
-                · {categoriseStats.cached} cache hit, {categoriseStats.llm} via LLM. Tag recurring patterns via the Transactions tab.
-              </span>
-            )}
+          <div className="space-y-2 border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/30 rounded-md p-3">
+            <div className="flex items-center gap-2 text-green-700 dark:text-green-400 text-sm flex-wrap">
+              <CheckCircle2 className="w-4 h-4" />
+              Imported {newRows.length} transactions
+              {categoriseStats && (
+                <span className="text-muted-foreground">
+                  · {categoriseStats.cached} from cache, {categoriseStats.llm} via AI
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <Button size="sm" onClick={() => navigateTo({ tab: 'transactions', action: 'suggest-recurring' })}>
+                <Sparkles className="w-3.5 h-3.5 mr-1" /> Review recurring suggestions
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleReset}>Done</Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Tagging repeated payments as recurring is what powers the cashflow forecast.
+            </p>
           </div>
         )}
 

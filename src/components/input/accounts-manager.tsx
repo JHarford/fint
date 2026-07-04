@@ -61,6 +61,52 @@ export function AccountsManager() {
         ) : sources.length === 0 ? (
           <p className="text-muted-foreground text-sm">No accounts yet. Add your first financial account.</p>
         ) : (
+          <>
+          {/* Mobile: vertical card list — tap an account to update its balance */}
+          <div className="md:hidden space-y-2">
+            {sources.map(source => {
+              const latest = getLatestBalance(balances, source.id)
+              const latestEntry = getHistory(source.id)[0]
+              return (
+                <div key={source.id} className="border rounded-lg overflow-hidden">
+                  <button
+                    className="w-full flex items-center justify-between gap-2 p-3 text-left active:bg-muted/50"
+                    onClick={() => setBalanceDialog({ mode: 'open', source })}
+                  >
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm truncate">{source.name}</div>
+                      <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{sourceTypeLabels[source.type]}</Badge>
+                        {latestEntry && <span>as of {latestEntry.as_of_date}</span>}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      {latest === null ? (
+                        <span className="text-muted-foreground text-sm">—</span>
+                      ) : (
+                        <span className={`font-semibold tabular-nums ${latest >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(latest)}
+                        </span>
+                      )}
+                      <div className="text-[10px] text-muted-foreground flex items-center gap-1 justify-end">
+                        <Wallet className="w-3 h-3" /> tap to update
+                      </div>
+                    </div>
+                  </button>
+                  <div className="flex items-center justify-end gap-1 px-2 pb-1.5 -mt-1">
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSourceDialog({ mode: 'edit', source })}>
+                      <Pencil className="w-3 h-3 mr-1" /> Edit
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => removeSource(source.id)}>
+                      <Trash2 className="w-3 h-3 mr-1" /> Delete
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          {/* Desktop: full table */}
+          <div className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -171,6 +217,8 @@ export function AccountsManager() {
               })}
             </TableBody>
           </Table>
+          </div>
+          </>
         )}
       </CardContent>
 

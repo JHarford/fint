@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TodayTab } from '@/components/planner/today-tab'
 import { CalendarTab } from '@/components/planner/calendar-tab'
@@ -66,6 +66,7 @@ import { useCalendarEntries } from '@/hooks/use-calendar-entries'
 import { useCoachMessages } from '@/hooks/use-coach-messages'
 import { useJournalDays } from '@/hooks/use-journal-days'
 import { isSupabaseConfigured } from '@/lib/supabase'
+import { onNavigate } from '@/lib/nav-bus'
 import { DebugConsole } from '@/components/debug-console'
 import { CelebrationToast } from '@/components/celebration-toast'
 import { CalendarCheck2, CalendarDays, LayoutDashboard, Settings, ReceiptText, Target } from 'lucide-react'
@@ -104,6 +105,9 @@ function App() {
   const [forecastMonths, setForecastMonths] = useState(getStoredMonths)
   const [activeTab, setActiveTab] = useState('today')
   const touchStart = useRef<{ x: number; y: number; blocked: boolean } | null>(null)
+
+  // Cross-tab deep links (e.g. CSV upload → Transactions + suggest recurring)
+  useEffect(() => onNavigate(i => setActiveTab(i.tab)), [])
 
   const onTouchStart = (e: React.TouchEvent) => {
     const t = e.touches[0]
