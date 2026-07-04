@@ -6,9 +6,10 @@ import { Input } from '@/components/ui/input'
 import { Check, Flame, MessageSquarePlus, Pencil, Plus, Trophy, X } from 'lucide-react'
 import type { CoachMessage, Goal, GoalEntry, JournalDay } from '@/types'
 import {
-  currentStreak, entriesForGoal, entryByDate, lastNDays, latestValue,
-  targetProgress, thisWeekCount, todayKey,
+  beatsPB, currentStreak, entriesForGoal, entryByDate, lastNDays, latestValue,
+  personalBest, STREAK_MILESTONES, targetProgress, thisWeekCount, todayKey,
 } from '@/lib/goal-stats'
+import { celebrate } from '@/lib/celebrate'
 import { GOAL_ICONS, goalColor } from './goal-meta'
 import { CoachCard } from './coach-card'
 
@@ -33,7 +34,7 @@ export function TodayTab({
 
   const doneToday = activeGoals.filter(g => {
     const entry = entriesForGoal(entries, g.id).find(e => e.date === today)
-    return entry && (g.goal_type === 'target' || entry.value > 0)
+    return entry && (g.goal_type === 'target' || g.goal_type === 'record' || entry.value > 0)
   }).length
 
   if (activeGoals.length === 0) {
@@ -119,9 +120,27 @@ function GoalRow({ goal, goalEntries, log, removeEntry }: GoalRowProps) {
   // bad day can be recorded honestly; habits are just done/not done.
   const cycle = async (date: string) => {
     const entry = byDate.get(date)
-    if (!entry) await log(goal.id, date, 1)
+    if (!entry) {
+      await log(goal.id, date, 1)
+      if (date === today) cheerForToday()
+    }
     else if (goal.goal_type === 'abstinence' && entry.value > 0) await log(goal.id, date, 0)
     else await removeEntry(goal.id, date)
+  }
+
+  const cheerForToday = () => {
+    if (goal.goal_type === 'abstinence') {
+      const streak = currentStreak(goalEntries) + 1
+      celebrate(STREAK_MILESTONES.includes(streak)
+        ? { title: `${streak} days on ${goal.name}!`, subtitle: 'That\'s a real milestone', kind: 'milestone' }
+        : { title: `Clean day marked`, subtitle: `${streak} day streak on ${goal.name}`, kind: 'done' })
+    } else if (goal.goal_type === 'habit') {
+      const done = thisWeekCount(goalEntries) + 1
+      const target = goal.frequency_per_week || 7
+      celebrate(done >= target
+        ? { title: `Week target hit!`, subtitle: `${goal.name} — ${done}/${target} this week`, kind: 'milestone' }
+        : { title: `${goal.name} done`, subtitle: `${done}/${target} this week`, kind: 'done' })
+    }
   }
 
   return (
@@ -143,7 +162,11 @@ function GoalRow({ goal, goalEntries, log, removeEntry }: GoalRowProps) {
         </div>
 
         {/* On phones this pair wraps onto its own full-width row: strip left, action right */}
-        {goal.goal_type !== 'target' ? (
+        {goal.goal_type === 'target' ? (
+          <TargetLogger goal={goal} todayEntry={todayEntry} goalEntries={goalEntries} log={log} />
+        ) : goal.goal_type === 'record' ? (
+          <RecordLogger goal={goal} todayEntry={todayEntry} goalEntries={goalEntries} log={log} />
+        ) : (
           <div className="flex items-center justify-between gap-3 w-full sm:w-auto">
             <WeekStrip goal={goal} byDate={byDate} onCycle={cycle} />
             <div className="flex items-center gap-1">
@@ -155,8 +178,6 @@ function GoalRow({ goal, goalEntries, log, removeEntry }: GoalRowProps) {
               )}
             </div>
           </div>
-        ) : (
-          <TargetLogger goal={goal} todayEntry={todayEntry} goalEntries={goalEntries} log={log} />
         )}
       </div>
 
@@ -208,7 +229,65 @@ function StatBadge({ goal, goalEntries }: { goal: Goal; goalEntries: GoalEntry[]
       </span>
     )
   }
+  if (goal.goal_type === 'record') {
+    const pb = personalBest(goal, goalEntries)
+    if (pb === null) return null
+    return (
+      <span className="inline-flex items-center gap-0.5 text-xs font-medium text-primary shrink-0">
+        <Trophy className="w-3.5 h-3.5" /> PB {pb}{goal.unit}
+      </span>
+    )
+  }
   return null
+}
+
+// Log today's attempt on a personal-best goal. Keeps the best value if you log
+// several times in a day, and celebrates when the PB falls.
+function RecordLogger({ goal, todayEntry, goalEntries, log }: {
+  goal: Goal
+  todayEntry: GoalEntry | undefined
+  goalEntries: GoalEntry[]
+  log: TodayTabProps['log']
+}) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState('')
+
+  const save = async () => {
+    const n = parseFloat(value)
+    if (isNaN(n)) return
+    const isPB = beatsPB(goal, goalEntries, n)
+    // Best-of-day: never overwrite today's entry with a worse attempt
+    const todayVal = todayEntry ? Number(todayEntry.value) : null
+    const keep = todayVal === null ? n
+      : goal.record_direction === 'higher' ? Math.max(todayVal, n) : Math.min(todayVal, n)
+    await log(goal.id, todayKey(), keep)
+    setEditing(false)
+    if (isPB) {
+      celebrate({ title: `New personal best!`, subtitle: `${goal.name} — ${n}${goal.unit}`, kind: 'pb' })
+    }
+  }
+
+  if (!editing) {
+    return (
+      <Button size="sm" variant="outline" className="shrink-0" onClick={() => { setValue(''); setEditing(true) }}>
+        {todayEntry ? `Today ${Number(todayEntry.value)}${goal.unit} · again` : 'Log attempt'}
+      </Button>
+    )
+  }
+  return (
+    <div className="flex items-center gap-1.5 shrink-0">
+      <Input
+        type="number"
+        autoFocus
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false) }}
+        className="w-24 h-8 text-sm"
+        placeholder={goal.unit || '0'}
+      />
+      <Button size="sm" className="h-8" onClick={save}>Log</Button>
+    </div>
+  )
 }
 
 // Last 7 days as tappable dots — makes it easy to backfill a missed check-in

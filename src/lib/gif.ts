@@ -35,3 +35,19 @@ export function downloadBlob(blob: Blob, filename: string) {
   a.click()
   URL.revokeObjectURL(a.href)
 }
+
+// On phones, open the native share sheet (save / copy / send); fall back to a
+// plain download where file sharing isn't supported (desktop browsers).
+export async function shareOrDownload(blob: Blob, filename: string) {
+  const file = new File([blob], filename, { type: blob.type })
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file] })
+      return
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') return // user closed the sheet
+      // otherwise fall through to download
+    }
+  }
+  downloadBlob(blob, filename)
+}

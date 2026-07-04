@@ -129,6 +129,20 @@ export function unitsAvoided(goal: Goal, goalEntries: GoalEntry[]): number | nul
   return totalDone(goalEntries) * (Number(goal.weekly_units) / 7)
 }
 
+// Personal best across all logged attempts on a record goal
+export function personalBest(goal: Goal, goalEntries: GoalEntry[]): number | null {
+  if (goalEntries.length === 0) return null
+  const values = goalEntries.map(e => Number(e.value))
+  return goal.record_direction === 'higher' ? Math.max(...values) : Math.min(...values)
+}
+
+// Would this value beat the current PB?
+export function beatsPB(goal: Goal, goalEntries: GoalEntry[], value: number): boolean {
+  const pb = personalBest(goal, goalEntries)
+  if (pb === null) return true
+  return goal.record_direction === 'higher' ? value > pb : value < pb
+}
+
 export function heatmapRangeLabel(weeks = 16): string {
   const start = startOfWeek(subWeeks(new Date(), weeks - 1), { weekStartsOn: 1 })
   return `${format(start, 'd MMM')} – today`

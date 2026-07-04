@@ -96,3 +96,15 @@
   font-family: var(--font-display);
   letter-spacing: -0.01em;
 }
+
+/* Tactile press feedback on touch devices */
+@layer base {
+  @media (hover: none) {
+    button {
+      transition: transform 0.08s ease;
+    }
+    button:active {
+      transform: scale(0.96);
+    }
+  }
+}

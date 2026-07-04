@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useRef, useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TodayTab } from '@/components/planner/today-tab'
 import { CalendarTab } from '@/components/planner/calendar-tab'
@@ -11,6 +11,20 @@ const InputTab = lazy(() => import('@/components/input/input-tab').then(m => ({ 
 
 function TabLoading() {
   return <p className="text-sm text-muted-foreground animate-pulse py-8 text-center">Loading…</p>
+}
+
+// Swipes that start inside a horizontally scrollable element (date grid,
+// heatmaps, tables) must scroll that element, not switch tabs.
+function insideHorizontalScroller(target: EventTarget | null): boolean {
+  let node = target instanceof Element ? target : null
+  while (node && node !== document.body) {
+    if (node.scrollWidth > node.clientWidth + 4) {
+      const overflowX = getComputedStyle(node).overflowX
+      if (overflowX === 'auto' || overflowX === 'scroll') return true
+    }
+    node = node.parentElement
+  }
+  return false
 }
 
 // Shown when the build has no Supabase credentials (e.g. env vars not set on
@@ -53,6 +67,7 @@ import { useCoachMessages } from '@/hooks/use-coach-messages'
 import { useJournalDays } from '@/hooks/use-journal-days'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { DebugConsole } from '@/components/debug-console'
+import { CelebrationToast } from '@/components/celebration-toast'
 import { CalendarCheck2, CalendarDays, LayoutDashboard, Settings, ReceiptText, Target } from 'lucide-react'
 
 // shortLabel is used in the mobile bottom nav where space is tight
@@ -88,6 +103,26 @@ function App() {
   const { days: journalDays, save: saveJournal } = useJournalDays()
   const [forecastMonths, setForecastMonths] = useState(getStoredMonths)
   const [activeTab, setActiveTab] = useState('today')
+  const touchStart = useRef<{ x: number; y: number; blocked: boolean } | null>(null)
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0]
+    touchStart.current = { x: t.clientX, y: t.clientY, blocked: insideHorizontalScroller(e.target) }
+  }
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const start = touchStart.current
+    touchStart.current = null
+    if (!start || start.blocked) return
+    const t = e.changedTouches[0]
+    const dx = t.clientX - start.x
+    const dy = t.clientY - start.y
+    // A deliberate horizontal swipe: long enough and clearly not a scroll
+    if (Math.abs(dx) < 70 || Math.abs(dx) < 2 * Math.abs(dy)) return
+    const idx = NAV_ITEMS.findIndex(n => n.value === activeTab)
+    const next = dx < 0 ? idx + 1 : idx - 1
+    if (next >= 0 && next < NAV_ITEMS.length) setActiveTab(NAV_ITEMS[next].value)
+  }
 
   const handleMonthsChange = (val: string) => {
     const n = parseInt(val, 10)
@@ -134,7 +169,11 @@ function App() {
         </div>
       </header>
 
-      <main className="max-w-[1600px] mx-auto px-4 py-6 pb-24 md:pb-6">
+      <main
+        className="max-w-[1600px] mx-auto px-4 py-6 pb-24 md:pb-6"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           {/* Top tab bar on desktop; mobile uses the bottom nav instead */}
           <TabsList className="mb-6 hidden md:inline-flex">
@@ -236,6 +275,8 @@ function App() {
           })}
         </div>
       </nav>
+
+      <CelebrationToast />
 
       {/* TEMPORARY: on-screen error console for mobile debugging — remove when done */}
       <DebugConsole />
