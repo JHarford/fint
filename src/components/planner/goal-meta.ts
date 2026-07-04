@@ -1,8 +1,9 @@
 import {
-  Ban, BookOpen, Brain, Cigarette, Dumbbell, Footprints, GlassWater, Heart,
-  Moon, PiggyBank, Salad, Target, TrendingDown, Wine, type LucideIcon,
+  Ban, BookOpen, Brain, Cigarette, Dice5, Dumbbell, Footprints, GlassWater,
+  Heart, Moon, PiggyBank, Salad, Target, Timer, TrendingDown, Trophy, Wine,
+  type LucideIcon,
 } from 'lucide-react'
-import type { GoalType } from '@/types'
+import type { GoalType, RecordDirection } from '@/types'
 
 export const GOAL_ICONS: Record<string, LucideIcon> = {
   wine: Wine,
@@ -19,6 +20,9 @@ export const GOAL_ICONS: Record<string, LucideIcon> = {
   'piggy-bank': PiggyBank,
   'trending-down': TrendingDown,
   target: Target,
+  timer: Timer,
+  trophy: Trophy,
+  dice: Dice5,
 }
 
 export interface GoalColor {
@@ -45,6 +49,7 @@ export const GOAL_TYPE_LABELS: Record<GoalType, string> = {
   abstinence: 'Quit / avoid',
   habit: 'Habit',
   target: 'Number target',
+  record: 'Personal best',
 }
 
 export interface GoalPreset {
@@ -55,6 +60,7 @@ export interface GoalPreset {
   frequency_per_week: number | null
   unit: string
   description: string
+  record_direction?: RecordDirection
 }
 
 export const GOAL_PRESETS: GoalPreset[] = [
@@ -68,4 +74,6 @@ export const GOAL_PRESETS: GoalPreset[] = [
   { name: 'Early night', goal_type: 'habit', icon: 'moon', color: 'violet', frequency_per_week: 5, unit: '', description: 'In bed before 11pm' },
   { name: 'Savings', goal_type: 'target', icon: 'piggy-bank', color: 'blue', frequency_per_week: null, unit: '£', description: 'Log your savings balance as it grows' },
   { name: 'Weight', goal_type: 'target', icon: 'trending-down', color: 'amber', frequency_per_week: null, unit: 'kg', description: 'Log your weight over time' },
+  { name: 'Speedcubing', goal_type: 'record', icon: 'timer', color: 'cyan', frequency_per_week: null, unit: 's', description: 'Log your best solve of the day', record_direction: 'lower' },
+  { name: 'Darts', goal_type: 'record', icon: 'trophy', color: 'emerald', frequency_per_week: null, unit: 'pts', description: 'Highest checkout / best leg', record_direction: 'higher' },
 ]

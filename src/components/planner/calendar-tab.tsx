@@ -17,7 +17,7 @@ import {
 import type { CalendarEntry, CalendarEntryType, Goal, GoalEntry, JournalDay } from '@/types'
 import { dateKey, todayKey } from '@/lib/goal-stats'
 import { compressToSquareJpeg } from '@/lib/image'
-import { makeGif, downloadBlob } from '@/lib/gif'
+import { makeGif, shareOrDownload } from '@/lib/gif'
 import { GOAL_ICONS, goalColor } from './goal-meta'
 
 const ENTRY_META: Record<CalendarEntryType, { icon: LucideIcon; label: string; text: string; dot: string }> = {
@@ -160,7 +160,7 @@ export function CalendarTab({
     try {
       const blob = await makeGif(photosInView.map(j => j.photo_data))
       const label = view === 'month' ? format(month, 'yyyy-MM') : visibleDays[0]
-      downloadBlob(blob, `lifeflow-${label}.gif`)
+      await shareOrDownload(blob, `lifeflow-${label}.gif`)
     } catch (e) {
       console.error('GIF export failed:', e)
     } finally {

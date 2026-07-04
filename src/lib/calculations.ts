@@ -384,6 +384,31 @@ function buildDebtPayoffMap(
 export { buildDebtPayoffMap }
 void toMonthlyAmount  // retained for the legacy buildDebtPayoffMap helper
 
+// How much of a category budget is already covered by other projected items
+// and/or actual spend in the same category. Category-level budgets (no
+// subcategory) skip items that belong to a sibling subcategory-level budget so
+// nothing is subtracted twice.
+function budgetCoverage(
+  budget: CategoryBudget,
+  subBudgetSubcats: Set<string>,
+  items: ProjectedItem[],
+  txns: Transaction[],
+): number {
+  let covered = 0
+  const matches = (category: string, subcategory: string) => {
+    if (category !== budget.category) return false
+    if (budget.subcategory) return subcategory === budget.subcategory
+    return !subBudgetSubcats.has(subcategory)
+  }
+  for (const it of items) {
+    if (it.amount > 0 && matches(it.category, it.subcategory)) covered += it.amount
+  }
+  for (const t of txns) {
+    if (t.amount > 0 && matches(t.category, t.subcategory)) covered += t.amount
+  }
+  return covered
+}
+
 // Calculate column data with running balances
 export function calculateColumnData(
   columns: DateColumn[],
@@ -403,43 +428,81 @@ export function calculateColumnData(
 
   // Derive the recurring obligation forecast from tagged transactions
   const derived = deriveObligationsFromTransactions(transactions)
-  const derivedGroups = new Set(derived.map(d => d.group))
+
+  // Subcategory-level budgets per category, so category-level budgets don't
+  // double-subtract spend that a sibling subcategory budget accounts for
+  const subBudgetsByCategory = new Map<string, Set<string>>()
+  for (const b of categoryBudgets) {
+    if (!b.subcategory) continue
+    const set = subBudgetsByCategory.get(b.category) ?? new Set<string>()
+    set.add(b.subcategory)
+    subBudgetsByCategory.set(b.category, set)
+  }
+
+  // Budgets are category TOTALS: recurring items and actual spend in the same
+  // category consume the budget rather than stacking on top of it. Without
+  // this, a tagged recurring energy bill AND a Bills budget both counted.
+  const netBudgets = (raw: ProjectedItem[], otherItems: ProjectedItem[], txns: Transaction[]): ProjectedItem[] =>
+    raw
+      .map(bp => {
+        const budget = categoryBudgets.find(b => `budget-${b.id}` === bp.id)
+        if (!budget) return bp
+        const covered = budgetCoverage(budget, subBudgetsByCategory.get(budget.category) ?? new Set(), otherItems, txns)
+        return { ...bp, amount: Math.max(0, Math.round((bp.amount - covered) * 100) / 100) }
+      })
+      .filter(bp => bp.amount > 0)
 
   for (const col of columns) {
     const txns = getTransactionsInRange(transactions, col.start, col.end)
     const isFuture = isAfter(col.start, today)
+    // The column containing today: partly actuals, partly still to come
+    const isCurrent = !isFuture && !isBefore(col.end, today)
 
     let cashMovement = 0
     let projectedItems: ProjectedItem[] = []
 
     if (isFuture) {
-      // Future: derived recurring + future_obligations + category_budgets
-      projectedItems = [
+      // Future: derived recurring + future_obligations, plus budgets net of
+      // whatever those recurring items already cover in the same category
+      const recurringProj = [
         ...projectDerivedItems(derived, col.start, col.end),
         ...projectFutureObligations(futureObligations, col.start, col.end),
-        ...projectCategoryBudgets(categoryBudgets, col.start, col.end),
+      ]
+      projectedItems = [
+        ...recurringProj,
+        ...netBudgets(projectCategoryBudgets(categoryBudgets, col.start, col.end), recurringProj, []),
       ]
       cashMovement = projectedItems.reduce((sum, item) => sum + item.amount, 0)
     } else {
       // Past/current: actuals are the truth. For recurring groups that DIDN'T
       // realise in this column, project the derived obligation so multi-account
       // imports don't leave gaps. Future obligations also fill in if their
-      // dates fall here. Budgets are NEVER projected in past — actual
-      // categorised spend is the answer.
+      // dates fall here.
       cashMovement = txns.reduce((sum, t) => sum + t.amount, 0)
 
       const realisedGroups = new Set(
         txns.map(t => t.recurrence_group).filter(g => !!g),
       )
       const unmatchedDerived = derived.filter(d => !realisedGroups.has(d.group))
-      projectedItems = [
+      const recurringProj = [
         ...projectDerivedItems(unmatchedDerived, col.start, col.end),
         ...projectFutureObligations(futureObligations, col.start, col.end)
           .filter(p => !realisedGroups.has(p.name)),
       ]
+      projectedItems = recurringProj
+
+      // The current column also carries the unspent remainder of each budget,
+      // so "this month" is comparable to future months instead of looking
+      // artificially cheap. Past columns never project budgets — actual spend
+      // is the answer there.
+      if (isCurrent) {
+        projectedItems = [
+          ...recurringProj,
+          ...netBudgets(projectCategoryBudgets(categoryBudgets, col.start, col.end), recurringProj, txns),
+        ]
+      }
       cashMovement += projectedItems.reduce((sum, item) => sum + item.amount, 0)
     }
-    void derivedGroups  // currently unused; reserved for future debt payoff logic
 
     // Cash movement: negative = money in (good), positive = money out (bad)
     // For running balance: subtract expenses, add income

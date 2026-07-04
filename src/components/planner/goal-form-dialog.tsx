@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import type { Goal, GoalType } from '@/types'
+import type { Goal, GoalType, RecordDirection } from '@/types'
 import { todayKey } from '@/lib/goal-stats'
 import { GOAL_COLORS, GOAL_ICONS, GOAL_PRESETS, GOAL_TYPE_LABELS, goalColor } from './goal-meta'
 
@@ -22,6 +22,7 @@ export interface GoalFormValues {
   target_date: string | null
   weekly_spend: number | null
   weekly_units: number | null
+  record_direction: RecordDirection
 }
 
 interface GoalFormDialogProps {
@@ -45,6 +46,7 @@ const emptyForm = (): GoalFormValues => ({
   target_date: null,
   weekly_spend: null,
   weekly_units: null,
+  record_direction: 'lower',
 })
 
 function errorMessage(e: unknown): string {
@@ -76,6 +78,7 @@ export function GoalFormDialog({ open, onOpenChange, goal, onSave }: GoalFormDia
         target_date: goal.target_date,
         weekly_spend: goal.weekly_spend !== null ? Number(goal.weekly_spend) : null,
         weekly_units: goal.weekly_units !== null ? Number(goal.weekly_units) : null,
+        record_direction: goal.record_direction ?? 'lower',
       })
     } else {
       setForm(emptyForm())
@@ -97,6 +100,7 @@ export function GoalFormDialog({ open, onOpenChange, goal, onSave }: GoalFormDia
       color: p.color,
       frequency_per_week: p.frequency_per_week,
       unit: p.unit,
+      record_direction: p.record_direction ?? 'lower',
     }))
   }
 
@@ -111,7 +115,7 @@ export function GoalFormDialog({ open, onOpenChange, goal, onSave }: GoalFormDia
         frequency_per_week: form.goal_type === 'habit' ? (form.frequency_per_week || 7) : null,
         start_value: form.goal_type === 'target' ? form.start_value : 0,
         target_value: form.goal_type === 'target' ? form.target_value : null,
-        unit: form.goal_type === 'target' ? form.unit : '',
+        unit: form.goal_type === 'target' || form.goal_type === 'record' ? form.unit : '',
         target_date: form.goal_type === 'target' ? form.target_date : null,
         weekly_spend: form.goal_type === 'abstinence' ? form.weekly_spend : null,
         weekly_units: form.goal_type === 'abstinence' ? form.weekly_units : null,
@@ -203,6 +207,25 @@ export function GoalFormDialog({ open, onOpenChange, goal, onSave }: GoalFormDia
                     onChange={e => set('weekly_units', e.target.value === '' ? null : parseFloat(e.target.value))}
                     placeholder="Drinks, cigarettes…"
                   />
+                </div>
+              </>
+            )}
+
+            {form.goal_type === 'record' && (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="goal-rec-unit">Unit</Label>
+                  <Input id="goal-rec-unit" value={form.unit} onChange={e => set('unit', e.target.value)} placeholder="s, pts, kg…" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>What counts as better?</Label>
+                  <Select value={form.record_direction} onValueChange={v => set('record_direction', v as RecordDirection)}>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="lower">Lower is better (times)</SelectItem>
+                      <SelectItem value="higher">Higher is better (scores)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </>
             )}

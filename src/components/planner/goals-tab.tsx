@@ -9,8 +9,8 @@ import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YA
 import type { Goal, GoalEntry } from '@/types'
 import {
   bestStreak, currentStreak, daysSinceStart, entriesForGoal, heatmapRangeLabel,
-  moneySaved, nextMilestone, slipCount, targetProgress, thisWeekCount, totalDone,
-  unitsAvoided,
+  moneySaved, nextMilestone, personalBest, slipCount, targetProgress,
+  thisWeekCount, totalDone, unitsAvoided,
 } from '@/lib/goal-stats'
 import { GoalHeatmap } from './goal-heatmap'
 import { GoalFormDialog, type GoalFormValues } from './goal-form-dialog'
@@ -155,6 +155,8 @@ function GoalCard({ goal, goalEntries, paused = false, onEdit, onTogglePause, on
 
       {goal.goal_type === 'target'
         ? <TargetChart goal={goal} goalEntries={goalEntries} />
+        : goal.goal_type === 'record'
+        ? <RecordChart goal={goal} goalEntries={goalEntries} />
         : (
           <div className="space-y-1">
             <GoalHeatmap goal={goal} goalEntries={goalEntries} />
@@ -220,6 +222,20 @@ function GoalStats({ goal, goalEntries }: { goal: Goal; goalEntries: GoalEntry[]
     )
   }
 
+  if (goal.goal_type === 'record') {
+    const pb = personalBest(goal, goalEntries)
+    const sorted = [...goalEntries].sort((a, b) => b.date.localeCompare(a.date))
+    const last = sorted[0]
+    return (
+      <div className="flex flex-wrap gap-x-6 gap-y-2 sm:pl-12">
+        <Stat label="Personal best" value={pb !== null ? `${pb}${goal.unit}` : '—'} highlight />
+        <Stat label="Last attempt" value={last ? `${Number(last.value)}${goal.unit}` : '—'} />
+        <Stat label="Days logged" value={String(goalEntries.length)} />
+        <Stat label="Counts as better" value={goal.record_direction === 'higher' ? 'Higher' : 'Lower'} />
+      </div>
+    )
+  }
+
   const progress = targetProgress(goal, goalEntries)
   return (
     <div className="flex flex-wrap gap-x-6 gap-y-2 sm:pl-12">
@@ -231,6 +247,50 @@ function GoalStats({ goal, goalEntries }: { goal: Goal; goalEntries: GoalEntry[]
         </>
       )}
       {progress.daysLeft !== null && <Stat label="Days left" value={String(Math.max(0, progress.daysLeft))} />}
+    </div>
+  )
+}
+
+// Attempts over time, with the PB as a dashed reference line
+function RecordChart({ goal, goalEntries }: { goal: Goal; goalEntries: GoalEntry[] }) {
+  const color = goalColor(goal.color)
+  const pb = personalBest(goal, goalEntries)
+  const data = [...goalEntries]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map(e => ({ date: e.date, value: Number(e.value) }))
+  if (data.length < 2) {
+    return <p className="text-xs text-muted-foreground sm:pl-12">Log a couple of attempts to see the trend.</p>
+  }
+  return (
+    <div className="h-32">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 5, right: 10, bottom: 0, left: 10 }}>
+          <XAxis
+            dataKey="date"
+            tickFormatter={d => format(parseISO(d), 'd MMM')}
+            tick={{ fontSize: 10 }}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis hide domain={['auto', 'auto']} />
+          <Tooltip
+            formatter={(v) => [`${Number(v)}${goal.unit}`, goal.name]}
+            labelFormatter={d => format(parseISO(String(d)), 'd MMM yyyy')}
+            contentStyle={{ fontSize: 12 }}
+          />
+          {pb !== null && (
+            <ReferenceLine y={pb} stroke={color.hex} strokeDasharray="4 4" strokeOpacity={0.6} />
+          )}
+          <Line
+            type="monotone"
+            dataKey="value"
+            stroke={color.hex}
+            strokeWidth={2}
+            dot={{ r: 2.5, fill: color.hex, strokeWidth: 0 }}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   )
 }

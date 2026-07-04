@@ -139,7 +139,8 @@ export interface Asset {
   created_at: string
 }
 
-export type GoalType = 'abstinence' | 'habit' | 'target'
+export type GoalType = 'abstinence' | 'habit' | 'target' | 'record'
+export type RecordDirection = 'lower' | 'higher'
 
 export interface Goal {
   id: string
@@ -157,6 +158,8 @@ export interface Goal {
   // abstinence goals: what the habit used to cost, for money-saved / units-avoided stats
   weekly_spend: number | null
   weekly_units: number | null
+  // record goals: whether a lower value (time) or higher value (score) is better
+  record_direction: RecordDirection
   is_active: boolean
   sort_order: number
   created_at: string
