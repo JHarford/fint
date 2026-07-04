@@ -42,7 +42,8 @@ function SetupNotice() {
         <pre className="bg-muted border rounded-lg px-4 py-3 text-xs overflow-x-auto">
 {`VITE_SUPABASE_URL=https://<project-ref>.supabase.co
 VITE_SUPABASE_ANON_KEY=<anon key>
-VITE_ANTHROPIC_API_KEY=<optional, for "Coach me">`}
+VITE_ANTHROPIC_API_KEY=<optional, for "Coach me">
+VITE_VAPID_PUBLIC_KEY=<optional, for push notifications>`}
         </pre>
         <p className="text-xs text-muted-foreground">
           Both values are in your Supabase project under Settings → API. See the

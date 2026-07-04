@@ -1,0 +1,9 @@
+{
+  "name": "lifeflow-droplet",
+  "private": true,
+  "type": "module",
+  "description": "Droplet-side helpers for LifeFlow (Web Push sender)",
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}
