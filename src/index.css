@@ -89,6 +89,8 @@
     }
   body {
     @apply bg-background text-foreground;
+    /* App-like feel: no double-tap zoom (viewport meta blocks pinch) */
+    touch-action: manipulation;
     }
 }
 
