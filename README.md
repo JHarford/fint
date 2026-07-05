@@ -30,7 +30,7 @@ web app backed by Supabase.
 
 1. Create a [Supabase](https://supabase.com) project and run the migrations
    in `supabase/` **in order** (`migration.sql`, then `migration-002.sql` …
-   `migration-008.sql`) in the SQL editor.
+   `migration-012.sql`) in the SQL editor.
 2. Configure `.env`:
 
    ```sh
@@ -40,6 +40,10 @@ web app backed by Supabase.
    # Note: this key ships in the built bundle; for anything shared,
    # generate coaching from the droplet instead (DROPLET.md).
    VITE_ANTHROPIC_API_KEY=<anthropic key>
+   # Optional — enables push notifications ("Notifications" card on Input).
+   # Generate with `npx web-push generate-vapid-keys`; the private key
+   # stays on the droplet, which sends the pushes (DROPLET.md §5).
+   VITE_VAPID_PUBLIC_KEY=<vapid public key>
    ```
 
 3. Install and run:

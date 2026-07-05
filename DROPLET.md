@@ -114,6 +114,47 @@ sb-post "$SUPABASE_URL/rest/v1/coach_messages" \
   -d "$(jq -n --arg m "$NOTE" '{message: $m, context: "scheduled droplet review", source: "ai"}')"
 ```
 
+## 5. Push notifications to the phone
+
+The app supports Web Push (migration-012): the user enables notifications on
+the Input tab, which stores a subscription per device in `push_subscriptions`.
+The droplet sends the actual pushes — they arrive even when the app is closed.
+
+One-time setup:
+
+```sh
+npx web-push generate-vapid-keys
+# → public key:  set as VITE_VAPID_PUBLIC_KEY in Vercel env vars + redeploy
+# → private key: stays on the droplet, never in the app
+
+cd droplet && npm install     # installs the web-push library
+
+export VAPID_PUBLIC_KEY="<public key>"
+export VAPID_PRIVATE_KEY="<private key>"
+# SUPABASE_URL and SUPABASE_SERVICE_KEY as above
+```
+
+Send a push (payload keys: title, body, optional url + tag):
+
+```sh
+node droplet/send-push.mjs --title "LifeFlow" --body "3 goals waiting for today's check-in" --url /
+```
+
+Dead subscriptions (uninstalled app, revoked permission) are pruned
+automatically when a send returns 404/410. Typical cron:
+
+```cron
+# morning nudge at 08:00
+0 8 * * *  cd /path/to/fint && node droplet/send-push.mjs --title "Good morning" --body "Check in on today's goals" --tag checkin
+```
+
+Combine with section 4 to push the generated coach note:
+write it to `coach_messages`, then send the same text with `send-push.mjs`
+so it lands as a notification and is waiting in the app.
+
+On iPhone, Web Push only works from the home-screen-installed app (iOS 16.4+),
+which is how LifeFlow is normally used anyway.
+
 ## In-app AI coaching (alternative to the droplet)
 
 The app can also generate coaching directly: set `VITE_ANTHROPIC_API_KEY` in

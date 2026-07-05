@@ -49,6 +49,8 @@ export default defineConfig({
         // App shell + assets are precached; Supabase/Anthropic API calls always hit the network
         globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
         navigateFallback: '/index.html',
+        // Web Push + notification-click handlers live outside the generated SW
+        importScripts: ['push-sw.js'],
       },
     }),
   ],

@@ -19,6 +19,7 @@ import { dateKey, todayKey } from '@/lib/goal-stats'
 import { compressToSquareJpeg } from '@/lib/image'
 import { makeGif, shareOrDownload } from '@/lib/gif'
 import { GOAL_ICONS, goalColor } from './goal-meta'
+import { QuickAdd } from './quick-add'
 
 const ENTRY_META: Record<CalendarEntryType, { icon: LucideIcon; label: string; text: string; dot: string }> = {
   birthday: { icon: Cake, label: 'Birthday', text: 'text-chart-5', dot: 'bg-chart-5' },
@@ -29,14 +30,17 @@ const ENTRY_META: Record<CalendarEntryType, { icon: LucideIcon; label: string; t
 
 type CalendarView = 'month' | 'week' | '3day'
 
-// Does this entry fall on the given day (accounting for yearly recurrence)?
+// Does this entry fall on the given day (multi-day spans + yearly recurrence)?
 function occursOn(entry: CalendarEntry, day: string): boolean {
   if (entry.date === day) return true
+  if (entry.end_date && entry.date <= day && day <= entry.end_date) return true
   return entry.recurs_annually && entry.date.slice(5) === day.slice(5) && entry.date <= day
 }
 
 // Next occurrence of an entry on/after today (for the upcoming list)
 function nextOccurrence(entry: CalendarEntry, today: string): string | null {
+  // An in-progress span (holiday we're on) counts as happening today
+  if (entry.end_date && entry.date <= today && today <= entry.end_date) return today
   if (!entry.recurs_annually) return entry.date >= today ? entry.date : null
   const thisYear = `${today.slice(0, 4)}${entry.date.slice(4)}`
   if (thisYear >= today) return thisYear
@@ -191,6 +195,15 @@ export function CalendarTab({
         </div>
       </div>
 
+      <QuickAdd
+        onCreate={createEntry}
+        onCreated={date => {
+          setSelected(date)
+          setMonth(startOfMonth(parseISO(date)))
+          setWindowStart(dateKey(startOfWeek(parseISO(date), { weekStartsOn: 1 })))
+        }}
+      />
+
       <div className="grid lg:grid-cols-[1fr_320px] gap-4 items-start">
         <Card className="py-4 px-4 gap-3">
           {/* Period header with nav + zoom */}
@@ -330,8 +343,9 @@ export function CalendarTab({
         entry={editing}
         defaultDate={selected}
         onSave={async values => {
-          if (editing) await updateEntry(editing.id, values)
-          else await createEntry({ ...values, is_done: false, source: 'user' })
+          const payload = { ...values, end_date: values.end_date || null }
+          if (editing) await updateEntry(editing.id, payload)
+          else await createEntry({ ...payload, is_done: false, source: 'user' })
         }}
       />
     </div>
@@ -588,6 +602,11 @@ function EntryRow({ entry, onEdit, onToggleDone, onDelete }: {
         <p className={`text-sm ${entry.is_done ? 'line-through text-muted-foreground' : ''}`}>
           {entry.event_time && <span className="tabular-nums font-medium mr-1.5">{entry.event_time}</span>}
           {entry.title}
+          {entry.end_date && (
+            <span className="text-[10px] text-muted-foreground ml-1.5">
+              until {format(parseISO(entry.end_date), 'd MMM')}
+            </span>
+          )}
           {entry.recurs_annually && <span className="text-[10px] text-muted-foreground ml-1.5">yearly</span>}
           {entry.source !== 'user' && (
             <Badge variant="outline" className="ml-1.5 text-[9px] px-1 py-0 align-middle">
@@ -617,6 +636,7 @@ function EntryRow({ entry, onEdit, onToggleDone, onDelete }: {
 interface EntryFormValues {
   title: string
   date: string
+  end_date: string // '' = single day
   event_time: string
   entry_type: CalendarEntryType
   notes: string
@@ -631,7 +651,7 @@ function EntryFormDialog({ open, onOpenChange, entry, defaultDate, onSave }: {
   onSave: (values: EntryFormValues) => Promise<void>
 }) {
   const [form, setForm] = useState<EntryFormValues>({
-    title: '', date: defaultDate, event_time: '', entry_type: 'event', notes: '', recurs_annually: false,
+    title: '', date: defaultDate, end_date: '', event_time: '', entry_type: 'event', notes: '', recurs_annually: false,
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -643,8 +663,8 @@ function EntryFormDialog({ open, onOpenChange, entry, defaultDate, onSave }: {
     if (open) {
       setError('')
       setForm(entry
-        ? { title: entry.title, date: entry.date, event_time: entry.event_time, entry_type: entry.entry_type, notes: entry.notes, recurs_annually: entry.recurs_annually }
-        : { title: '', date: defaultDate, event_time: '', entry_type: 'event', notes: '', recurs_annually: false })
+        ? { title: entry.title, date: entry.date, end_date: entry.end_date ?? '', event_time: entry.event_time, entry_type: entry.entry_type, notes: entry.notes, recurs_annually: entry.recurs_annually }
+        : { title: '', date: defaultDate, end_date: '', event_time: '', entry_type: 'event', notes: '', recurs_annually: false })
     }
   }
 
@@ -656,7 +676,8 @@ function EntryFormDialog({ open, onOpenChange, entry, defaultDate, onSave }: {
     setSaving(true)
     setError('')
     try {
-      await onSave({ ...form, title: form.title.trim() })
+      const end = form.end_date && form.end_date > form.date ? form.end_date : ''
+      await onSave({ ...form, title: form.title.trim(), end_date: end })
       onOpenChange(false)
     } catch (e) {
       console.error('Calendar entry save failed:', e)
@@ -708,6 +729,10 @@ function EntryFormDialog({ open, onOpenChange, entry, defaultDate, onSave }: {
             <div className="space-y-1.5">
               <Label htmlFor="entry-time">Time <span className="text-muted-foreground font-normal">(optional)</span></Label>
               <Input id="entry-time" type="time" value={form.event_time} onChange={e => set('event_time', e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="entry-end">Until <span className="text-muted-foreground font-normal">(multi-day)</span></Label>
+              <Input id="entry-end" type="date" min={form.date} value={form.end_date} onChange={e => set('end_date', e.target.value)} />
             </div>
           </div>
           <div className="space-y-1.5">

@@ -1,3 +1,4 @@
+import { NotificationsManager } from './notifications-manager'
 import { AccountsManager } from './accounts-manager'
 import { CsvUpload } from './csv-upload'
 import { Categoriser } from './categoriser'
@@ -10,6 +11,7 @@ import { AssetManager } from './asset-manager'
 export function InputTab() {
   return (
     <div className="space-y-6">
+      <NotificationsManager />
       <AccountsManager />
       <CsvUpload />
       <Categoriser />

@@ -183,6 +183,7 @@ export interface CalendarEntry {
   id: string
   title: string
   date: string
+  end_date: string | null // set = multi-day span (holidays, trips), inclusive
   event_time: string // "HH:MM", empty = all-day
   entry_type: CalendarEntryType
   notes: string
