@@ -203,6 +203,21 @@ export interface CoachMessage {
   created_at: string
 }
 
+// House jobs — deliberately lighter than goals: no streaks, no coaching
+export interface Chore {
+  id: string
+  name: string
+  sort_order: number
+  created_at: string
+}
+
+export interface ChoreLog {
+  id: string
+  chore_id: string
+  date: string
+  created_at: string
+}
+
 // For CSV upload preview
 export interface CsvRow {
   number: string

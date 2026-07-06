@@ -21,6 +21,7 @@ import { compressToSquareJpeg } from '@/lib/image'
 import { makeGif, shareOrDownload } from '@/lib/gif'
 import { GOAL_ICONS, goalColor } from './goal-meta'
 import { QuickAdd } from './quick-add'
+import { ChoresOnDay } from './chores-card'
 
 const ENTRY_META: Record<CalendarEntryType, { icon: LucideIcon; label: string; text: string; dot: string }> = {
   birthday: { icon: Cake, label: 'Birthday', text: 'text-chart-5', dot: 'bg-chart-5' },
@@ -288,6 +289,8 @@ export function CalendarTab({
                 </div>
               </div>
             )}
+
+            <ChoresOnDay day={selected} />
 
             {selectedEntries.length > 0 ? (
               <div className="space-y-2">
@@ -705,7 +708,7 @@ function EntryFormDialog({ open, onOpenChange, entry, defaultDate, onSave }: {
             <Label htmlFor="entry-title">Title</Label>
             <Input id="entry-title" value={form.title} onChange={e => set('title', e.target.value)} placeholder="e.g. Mum's birthday" autoFocus />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 *:min-w-0">
             <div className="space-y-1.5">
               <Label>Type</Label>
               <Select
@@ -729,7 +732,15 @@ function EntryFormDialog({ open, onOpenChange, entry, defaultDate, onSave }: {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="entry-time">Time <span className="text-muted-foreground font-normal">(optional)</span></Label>
-              <Input id="entry-time" type="time" value={form.event_time} onChange={e => set('event_time', e.target.value)} className="w-full" />
+              {/* appearance-none stops iOS giving the time input a fixed
+                  intrinsic width that overflows the 50% grid column */}
+              <Input
+                id="entry-time"
+                type="time"
+                value={form.event_time}
+                onChange={e => set('event_time', e.target.value)}
+                className="w-full min-w-0 appearance-none [&::-webkit-date-and-time-value]:text-left"
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="entry-end">Until <span className="text-muted-foreground font-normal">(multi-day)</span></Label>

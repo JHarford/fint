@@ -12,6 +12,7 @@ import {
 import { celebrate } from '@/lib/celebrate'
 import { GOAL_ICONS, goalColor } from './goal-meta'
 import { CoachCard } from './coach-card'
+import { ChoresCard } from './chores-card'
 
 interface TodayTabProps {
   goals: Goal[]
@@ -84,6 +85,8 @@ export function TodayTab({
           />
         ))}
       </div>
+
+      <ChoresCard />
     </div>
   )
 }
