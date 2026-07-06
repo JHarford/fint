@@ -6,6 +6,7 @@ export type Topic = 'transactions' | 'category_rules' | 'sources' | 'balances'
   | 'future_obligations' | 'category_budgets'
   | 'goals' | 'goal_entries'
   | 'calendar_entries' | 'coach_messages' | 'journal_days'
+  | 'chores' | 'chore_logs'
 
 type Listener = () => void
 const listeners = new Map<Topic, Set<Listener>>()
