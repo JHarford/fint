@@ -305,7 +305,8 @@ function WeekStrip({ goal, byDate, onCycle }: {
         const beforeStart = date < goal.start_date
         let cls = 'bg-muted hover:bg-muted-foreground/30'
         if (entry && entry.value > 0) cls = `${color.solid} hover:opacity-80`
-        else if (entry) cls = 'bg-red-500 hover:opacity-80'
+        // Slipped: hollow red ring, clearly different from a filled clean day
+        else if (entry) cls = 'bg-background border-2 border-red-500 hover:opacity-80'
         return (
           <button
             key={date}
