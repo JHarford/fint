@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Bell, Cake, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Film,
@@ -296,7 +297,7 @@ export function CalendarTab({
                     entry={entry}
                     onEdit={() => openEdit(entry)}
                     onToggleDone={() => updateEntry(entry.id, { is_done: !entry.is_done })}
-                    onDelete={() => removeEntry(entry.id)}
+                    onDelete={() => { if (window.confirm(`Delete "${entry.title}"?`)) removeEntry(entry.id) }}
                   />
                 ))}
               </div>
@@ -596,9 +597,9 @@ function EntryRow({ entry, onEdit, onToggleDone, onDelete }: {
   const Icon = meta.icon
   const doneable = entry.entry_type === 'reminder' || entry.entry_type === 'task'
   return (
-    <div className="flex items-start gap-2.5 group">
+    <div className="flex items-start gap-2.5">
       <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${meta.text}`} />
-      <div className="min-w-0 flex-1">
+      <button className="min-w-0 flex-1 text-left" onClick={onEdit} title="Tap to edit">
         <p className={`text-sm ${entry.is_done ? 'line-through text-muted-foreground' : ''}`}>
           {entry.event_time && <span className="tabular-nums font-medium mr-1.5">{entry.event_time}</span>}
           {entry.title}
@@ -615,17 +616,17 @@ function EntryRow({ entry, onEdit, onToggleDone, onDelete }: {
           )}
         </p>
         {entry.notes && <p className="text-xs text-muted-foreground">{entry.notes}</p>}
-      </div>
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+      </button>
+      <div className="flex items-center gap-0.5 shrink-0">
         {doneable && (
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" title={entry.is_done ? 'Mark not done' : 'Mark done'} onClick={onToggleDone}>
-            <Check className={`w-3.5 h-3.5 ${entry.is_done ? 'text-chart-3' : ''}`} />
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title={entry.is_done ? 'Mark not done' : 'Mark done'} onClick={onToggleDone}>
+            <Check className={`w-3.5 h-3.5 ${entry.is_done ? 'text-chart-3' : 'text-muted-foreground'}`} />
           </Button>
         )}
-        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" title="Edit" onClick={onEdit}>
-          <Pencil className="w-3 h-3" />
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Edit" onClick={onEdit}>
+          <Pencil className="w-3 h-3 text-muted-foreground" />
         </Button>
-        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive hover:text-destructive" title="Delete" onClick={onDelete}>
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" title="Delete" onClick={onDelete}>
           <Trash2 className="w-3 h-3" />
         </Button>
       </div>
@@ -724,15 +725,15 @@ function EntryFormDialog({ open, onOpenChange, entry, defaultDate, onSave }: {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="entry-date">Date</Label>
-              <Input id="entry-date" type="date" value={form.date} onChange={e => set('date', e.target.value)} />
+              <DatePicker id="entry-date" value={form.date} onChange={v => set('date', v)} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="entry-time">Time <span className="text-muted-foreground font-normal">(optional)</span></Label>
-              <Input id="entry-time" type="time" value={form.event_time} onChange={e => set('event_time', e.target.value)} />
+              <Input id="entry-time" type="time" value={form.event_time} onChange={e => set('event_time', e.target.value)} className="w-full" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="entry-end">Until <span className="text-muted-foreground font-normal">(multi-day)</span></Label>
-              <Input id="entry-end" type="date" min={form.date} value={form.end_date} onChange={e => set('end_date', e.target.value)} />
+              <DatePicker id="entry-end" value={form.end_date} onChange={v => set('end_date', v)} min={form.date} placeholder="Same day" allowClear />
             </div>
           </div>
           <div className="space-y-1.5">

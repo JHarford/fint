@@ -88,13 +88,26 @@ export function detectInsights(goals: Goal[], allEntries: GoalEntry[]): CoachIns
 
     if (goal.goal_type === 'target') {
       const progress = targetProgress(goal, entries)
-      if (progress.onTrack === false) {
+      const unit = goal.unit || ''
+      if (entries.length === 0) {
+        // Nothing logged since the goal was set up — that's a logging nudge,
+        // not "behind pace" (progress is simply unknown, not 0)
+        if (differenceInCalendarDays(new Date(), parseISO(goal.start_date)) >= 5) {
+          insights.push({
+            goalId: goal.id,
+            goalName: goal.name,
+            kind: 'missed_days',
+            tone: 'nudge',
+            summary: `${goal.name} has no updates logged yet — it's still at its starting value of ${unit}${Number(goal.start_value).toLocaleString()}. Log the latest number on the Today screen whenever it changes and the chart will track the trend.`,
+          })
+        }
+      } else if (progress.onTrack === false) {
         insights.push({
           goalId: goal.id,
           goalName: goal.name,
           kind: 'behind_target',
           tone: 'nudge',
-          summary: `${goal.name} is at ${Math.round(progress.pct)}% and slightly behind pace for ${goal.target_date ? format(parseISO(goal.target_date), 'd MMM') : 'the target'}. A small extra push this month gets it back on track.`,
+          summary: `${goal.name} is at ${unit}${progress.current.toLocaleString()}, aiming for ${unit}${Number(goal.target_value).toLocaleString()}${goal.target_date ? ` by ${format(parseISO(goal.target_date), 'd MMM')}` : ''} — slightly behind pace. A small extra push this month gets it back on track.`,
         })
       }
     }
