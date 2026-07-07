@@ -36,18 +36,40 @@ export function knownCalories(logs: FoodLog[], name: string): number | null {
   return match ? match.calories : null
 }
 
+export interface EstimatedFood {
+  name: string
+  calories: number
+  assumption: string
+}
+
 const SCHEMA = {
   type: 'object',
   properties: {
-    calories: { type: 'integer', description: 'Best single estimate of total kcal for the described food/meal' },
-    assumption: { type: 'string', description: 'One short clause stating the assumed portion size, e.g. "assuming a pub-sized burger with bun"' },
+    items: {
+      type: 'array',
+      description: 'One entry per distinct food or drink mentioned',
+      items: {
+        type: 'object',
+        properties: {
+          name: {
+            type: 'string',
+            description: 'Short standardised label with portion where relevant, e.g. "Youvetsi", "Greek salad (small)", "Coca-Cola (330ml)"',
+          },
+          calories: { type: 'integer', description: 'Best single kcal estimate for this item' },
+          assumption: { type: 'string', description: 'Short clause stating the assumed portion, e.g. "restaurant portion"' },
+        },
+        required: ['name', 'calories', 'assumption'],
+        additionalProperties: false,
+      },
+    },
   },
-  required: ['calories', 'assumption'],
+  required: ['items'],
   additionalProperties: false,
 } as const
 
-// One-line Haiku call: "burger from the pub" → { calories: 850, assumption: … }
-export async function estimateCalories(text: string): Promise<{ calories: number; assumption: string }> {
+// One Haiku call: "youvetsi with a small greek salad, chorizo starter and a
+// coke" → separate standardised items, each with its own kcal estimate.
+export async function estimateFoods(text: string): Promise<EstimatedFood[]> {
   const { default: Anthropic } = await import('@anthropic-ai/sdk')
   const client = new Anthropic({
     apiKey: import.meta.env.VITE_ANTHROPIC_API_KEY,
@@ -55,16 +77,19 @@ export async function estimateCalories(text: string): Promise<{ calories: number
   })
   const response = await client.messages.create({
     model: 'claude-haiku-4-5',
-    max_tokens: 256,
+    max_tokens: 1024,
     system:
-      'Estimate the calories in the food a UK user describes having eaten. Assume typical UK portion sizes. ' +
-      'Give one realistic total, not a range.',
+      'A UK user describes food they have eaten. Split the description into separate items — a main, a side, ' +
+      'a starter and a drink are each their own item. Standardise each name into a short conventional label ' +
+      '(capitalised, portion in brackets when it matters) so the same food always gets the same name. ' +
+      'Estimate realistic kcal per item using typical UK portion sizes — one number, not a range.',
     messages: [{ role: 'user', content: text }],
     output_config: { format: { type: 'json_schema', schema: SCHEMA } },
   })
   const block = response.content.find(b => b.type === 'text')
   if (!block || block.type !== 'text') throw new Error('No response from the model')
-  const parsed = JSON.parse(block.text) as { calories: number; assumption: string }
-  if (!Number.isFinite(parsed.calories) || parsed.calories < 0) throw new Error('Bad estimate — try describing it differently')
-  return parsed
+  const parsed = JSON.parse(block.text) as { items: EstimatedFood[] }
+  const items = (parsed.items ?? []).filter(i => i.name && Number.isFinite(i.calories) && i.calories >= 0)
+  if (items.length === 0) throw new Error("Couldn't estimate that — try describing it differently")
+  return items
 }
