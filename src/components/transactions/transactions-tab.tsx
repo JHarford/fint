@@ -49,7 +49,7 @@ export function TransactionsTab() {
   // via the nav-bus subscription when the tab is already mounted.
   const [suggestOpen, setSuggestOpen] = useState(() => consumePendingAction('suggest-recurring'))
   useEffect(() => onNavigate(i => {
-    if (i.tab === 'transactions' && consumePendingAction('suggest-recurring')) setSuggestOpen(true)
+    if (i.tab === 'finance' && consumePendingAction('suggest-recurring')) setSuggestOpen(true)
   }), [])
 
   const sourceById = useMemo(() => Object.fromEntries(sources.map(s => [s.id, s])), [sources])

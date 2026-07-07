@@ -27,3 +27,9 @@ export function consumePendingAction(action: string): boolean {
   pendingAction = null
   return true
 }
+
+// Non-destructive check, for containers that route to a subtab before the
+// component that actually consumes the action has mounted.
+export function peekPendingAction(action: string): boolean {
+  return pendingAction === action
+}

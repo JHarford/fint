@@ -218,6 +218,26 @@ export interface ChoreLog {
   created_at: string
 }
 
+// Cal Pal food tracker
+export interface FoodLog {
+  id: string
+  date: string
+  name: string
+  calories: number
+  created_at: string
+}
+
+export interface CalPalSettings {
+  id: number
+  weight_kg: number
+  height_cm: number
+  sex: 'male' | 'female'
+  age: number
+  activity: number // TDEE multiplier: 1.2 sedentary … 1.725 very active
+  adjustment: number // kcal surplus (+) or deficit (−) on top of TDEE
+  updated_at: string
+}
+
 // For CSV upload preview
 export interface CsvRow {
   number: string
