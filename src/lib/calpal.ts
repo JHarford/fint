@@ -23,22 +23,36 @@ export function caloriesOn(logs: FoodLog[], date: string): number {
   return logs.filter(l => l.date === date).reduce((a, l) => a + l.calories, 0)
 }
 
+export function macrosOn(logs: FoodLog[], date: string): { calories: number; protein: number; fat: number } {
+  return logs.filter(l => l.date === date).reduce(
+    (a, l) => ({ calories: a.calories + l.calories, protein: a.protein + Number(l.protein || 0), fat: a.fat + Number(l.fat || 0) }),
+    { calories: 0, protein: 0, fat: 0 },
+  )
+}
+
+// Daily protein target in grams: bodyweight × g/kg setting
+export function proteinTarget(s: CalPalSettings): number {
+  return Math.round(Number(s.weight_kg) * Number(s.protein_per_kg || 1.6))
+}
+
 export function normaliseFood(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
-// Most recent calorie count logged for this exact food name, so repeat foods
-// fill themselves in ("peanut butter roll" → 150 next time).
-export function knownCalories(logs: FoodLog[], name: string): number | null {
+// Most recent macros logged for this exact food name, so repeat foods fill
+// themselves in ("peanut butter roll" → 150 kcal / 6P / 8F next time).
+export function knownFood(logs: FoodLog[], name: string): { calories: number; protein: number; fat: number } | null {
   const key = normaliseFood(name)
   if (!key) return null
   const match = logs.find(l => normaliseFood(l.name) === key) // logs arrive date-desc
-  return match ? match.calories : null
+  return match ? { calories: match.calories, protein: Number(match.protein || 0), fat: Number(match.fat || 0) } : null
 }
 
 export interface EstimatedFood {
   name: string
   calories: number
+  protein: number
+  fat: number
   assumption: string
 }
 
@@ -56,9 +70,11 @@ const SCHEMA = {
             description: 'Short standardised label with portion where relevant, e.g. "Youvetsi", "Greek salad (small)", "Coca-Cola (330ml)"',
           },
           calories: { type: 'integer', description: 'Best single kcal estimate for this item' },
+          protein: { type: 'integer', description: 'Rough protein content in grams' },
+          fat: { type: 'integer', description: 'Rough fat content in grams' },
           assumption: { type: 'string', description: 'Short clause stating the assumed portion, e.g. "restaurant portion"' },
         },
-        required: ['name', 'calories', 'assumption'],
+        required: ['name', 'calories', 'protein', 'fat', 'assumption'],
         additionalProperties: false,
       },
     },
@@ -82,7 +98,7 @@ export async function estimateFoods(text: string): Promise<EstimatedFood[]> {
       'A UK user describes food they have eaten. Split the description into separate items — a main, a side, ' +
       'a starter and a drink are each their own item. Standardise each name into a short conventional label ' +
       '(capitalised, portion in brackets when it matters) so the same food always gets the same name. ' +
-      'Estimate realistic kcal per item using typical UK portion sizes — one number, not a range.',
+      'Estimate realistic kcal, protein grams and fat grams per item using typical UK portion sizes — single numbers, not ranges.',
     messages: [{ role: 'user', content: text }],
     output_config: { format: { type: 'json_schema', schema: SCHEMA } },
   })

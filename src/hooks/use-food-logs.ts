@@ -27,12 +27,12 @@ export function useFoodLogs() {
   useEffect(() => { fetch() }, [fetch])
   useEffect(() => subscribe('food_logs', fetch), [fetch])
 
-  const add = async (date: string, name: string, calories: number) => {
+  const add = async (date: string, name: string, calories: number, protein = 0, fat = 0) => {
     setLogs(prev => [
-      { id: `optimistic-${Date.now()}`, date, name: name.trim(), calories, created_at: '' },
+      { id: `optimistic-${Date.now()}`, date, name: name.trim(), calories, protein, fat, created_at: '' },
       ...prev,
     ])
-    const { error } = await supabase.from('food_logs').insert({ date, name: name.trim(), calories })
+    const { error } = await supabase.from('food_logs').insert({ date, name: name.trim(), calories, protein, fat })
     if (error) {
       await fetch()
       throw error
