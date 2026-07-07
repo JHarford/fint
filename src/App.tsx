@@ -5,9 +5,8 @@ import { CalendarTab } from '@/components/planner/calendar-tab'
 
 // Heavy tabs (charts, CSV tooling) load on demand to keep first paint fast
 const GoalsTab = lazy(() => import('@/components/planner/goals-tab').then(m => ({ default: m.GoalsTab })))
-const DashboardTab = lazy(() => import('@/components/dashboard/dashboard-tab').then(m => ({ default: m.DashboardTab })))
-const TransactionsTab = lazy(() => import('@/components/transactions/transactions-tab').then(m => ({ default: m.TransactionsTab })))
-const InputTab = lazy(() => import('@/components/input/input-tab').then(m => ({ default: m.InputTab })))
+const CalPalTab = lazy(() => import('@/components/calpal/calpal-tab').then(m => ({ default: m.CalPalTab })))
+import { FinanceTab } from '@/components/finance/finance-tab'
 
 function TabLoading() {
   return <p className="text-sm text-muted-foreground animate-pulse py-8 text-center">Loading…</p>
@@ -70,16 +69,15 @@ import { isSupabaseConfigured } from '@/lib/supabase'
 import { onNavigate } from '@/lib/nav-bus'
 import { DebugConsole } from '@/components/debug-console'
 import { CelebrationToast } from '@/components/celebration-toast'
-import { CalendarCheck2, CalendarDays, LayoutDashboard, Settings, ReceiptText, Target } from 'lucide-react'
+import { CalendarCheck2, CalendarDays, LayoutDashboard, Target, UtensilsCrossed } from 'lucide-react'
 
 // shortLabel is used in the mobile bottom nav where space is tight
 const NAV_ITEMS = [
   { value: 'today', label: 'Today', shortLabel: 'Today', icon: CalendarCheck2 },
   { value: 'goals', label: 'Goals', shortLabel: 'Goals', icon: Target },
   { value: 'calendar', label: 'Calendar', shortLabel: 'Diary', icon: CalendarDays },
-  { value: 'dashboard', label: 'Finance', shortLabel: 'Finance', icon: LayoutDashboard },
-  { value: 'transactions', label: 'Transactions', shortLabel: 'Activity', icon: ReceiptText },
-  { value: 'input', label: 'Input', shortLabel: 'Input', icon: Settings },
+  { value: 'calpal', label: 'Cal Pal', shortLabel: 'Cal Pal', icon: UtensilsCrossed },
+  { value: 'finance', label: 'Finance', shortLabel: 'Finance', icon: LayoutDashboard },
 ]
 
 function getStoredMonths(): number {
@@ -156,7 +154,7 @@ function App() {
             {isLoading && (
               <span className="text-xs text-muted-foreground animate-pulse">Loading...</span>
             )}
-            {activeTab === 'dashboard' && (
+            {activeTab === 'finance' && (
               <div className="flex items-center gap-1.5 border rounded-md px-2 py-1 bg-muted/50">
                 <label className="text-xs text-muted-foreground whitespace-nowrap">Forecast</label>
                 <input
@@ -197,10 +195,12 @@ function App() {
               log={logGoalEntry}
               removeEntry={removeGoalEntry}
               onManageGoals={() => setActiveTab('goals')}
+              onOpenCalPal={() => setActiveTab('calpal')}
               coachMessages={coachMessages}
               createCoachMessage={createCoachMessage}
               markCoachMessageRead={markCoachMessageRead}
               journalDays={journalDays}
+              calendarEntries={calendarEntries}
             />
           </TabsContent>
 
@@ -229,39 +229,31 @@ function App() {
             </Suspense>
           </TabsContent>
 
-          <TabsContent value="dashboard">
+          <TabsContent value="calpal">
             <Suspense fallback={<TabLoading />}>
-              <DashboardTab
-                sources={sources}
-                transactions={transactions}
-                recurringItems={recurringItems}
-                futureObligations={futureObligations}
-                categoryBudgets={categoryBudgets}
-                balances={balances}
-                debts={debts}
-                assets={assets}
-                forecastMonths={forecastMonths}
-              />
+              <CalPalTab />
             </Suspense>
           </TabsContent>
 
-          <TabsContent value="transactions">
-            <Suspense fallback={<TabLoading />}>
-              <TransactionsTab />
-            </Suspense>
-          </TabsContent>
-
-          <TabsContent value="input">
-            <Suspense fallback={<TabLoading />}>
-              <InputTab />
-            </Suspense>
+          <TabsContent value="finance">
+            <FinanceTab
+              sources={sources}
+              transactions={transactions}
+              recurringItems={recurringItems}
+              futureObligations={futureObligations}
+              categoryBudgets={categoryBudgets}
+              balances={balances}
+              debts={debts}
+              assets={assets}
+              forecastMonths={forecastMonths}
+            />
           </TabsContent>
         </Tabs>
       </main>
 
       {/* App-style bottom navigation on mobile */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 pb-[env(safe-area-inset-bottom)]">
-        <div className="grid grid-cols-6">
+        <div className="grid grid-cols-5">
           {NAV_ITEMS.map(({ value, shortLabel, icon: Icon }) => {
             const active = activeTab === value
             return (

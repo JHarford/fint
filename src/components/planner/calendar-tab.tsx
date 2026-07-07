@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import {
-  addDays, addMonths, addYears, differenceInCalendarDays, endOfMonth, format,
+  addDays, addMonths, differenceInCalendarDays, endOfMonth, format,
   isSameMonth, parseISO, startOfMonth, startOfWeek, subDays, subMonths,
 } from 'date-fns'
 import { Card } from '@/components/ui/card'
@@ -22,6 +22,7 @@ import { makeGif, shareOrDownload } from '@/lib/gif'
 import { GOAL_ICONS, goalColor } from './goal-meta'
 import { QuickAdd } from './quick-add'
 import { ChoresOnDay } from './chores-card'
+import { CaloriesOnDay } from '@/components/calpal/calpal-today-card'
 
 const ENTRY_META: Record<CalendarEntryType, { icon: LucideIcon; label: string; text: string; dot: string }> = {
   birthday: { icon: Cake, label: 'Birthday', text: 'text-chart-5', dot: 'bg-chart-5' },
@@ -32,22 +33,7 @@ const ENTRY_META: Record<CalendarEntryType, { icon: LucideIcon; label: string; t
 
 type CalendarView = 'month' | 'week' | '3day'
 
-// Does this entry fall on the given day (multi-day spans + yearly recurrence)?
-function occursOn(entry: CalendarEntry, day: string): boolean {
-  if (entry.date === day) return true
-  if (entry.end_date && entry.date <= day && day <= entry.end_date) return true
-  return entry.recurs_annually && entry.date.slice(5) === day.slice(5) && entry.date <= day
-}
-
-// Next occurrence of an entry on/after today (for the upcoming list)
-function nextOccurrence(entry: CalendarEntry, today: string): string | null {
-  // An in-progress span (holiday we're on) counts as happening today
-  if (entry.end_date && entry.date <= today && today <= entry.end_date) return today
-  if (!entry.recurs_annually) return entry.date >= today ? entry.date : null
-  const thisYear = `${today.slice(0, 4)}${entry.date.slice(4)}`
-  if (thisYear >= today) return thisYear
-  return dateKey(addYears(parseISO(thisYear), 1))
-}
+import { nextOccurrence, occursOn } from '@/lib/calendar-utils'
 
 interface CalendarTabProps {
   goals: Goal[]
@@ -290,6 +276,7 @@ export function CalendarTab({
               </div>
             )}
 
+            <CaloriesOnDay day={selected} />
             <ChoresOnDay day={selected} />
 
             {selectedEntries.length > 0 ? (
@@ -501,6 +488,7 @@ function DayJournal({ day, journal, save }: {
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [note, setNote] = useState(journal?.note ?? '')
+  const [editingNote, setEditingNote] = useState(false)
   const [lastDay, setLastDay] = useState(day)
   const [busy, setBusy] = useState(false)
 
@@ -508,6 +496,7 @@ function DayJournal({ day, journal, save }: {
   if (day !== lastDay) {
     setLastDay(day)
     setNote(journal?.note ?? '')
+    setEditingNote(false)
   }
 
   const onPhotoPicked = async (file: File | undefined) => {
@@ -525,6 +514,7 @@ function DayJournal({ day, journal, save }: {
 
   const saveNote = async () => {
     const trimmed = note.trim().slice(0, 150)
+    setEditingNote(false)
     if (trimmed === (journal?.note ?? '')) return
     try {
       await save(day, { note: trimmed })
@@ -569,23 +559,42 @@ function DayJournal({ day, journal, save }: {
         </Button>
       )}
 
-      <div className="space-y-1">
-        <div className="flex items-center gap-1.5">
-          <Input
+      {/* Saved note shows as plain wrapping text; tap it to edit */}
+      {!editingNote && (journal?.note ?? '') !== '' ? (
+        <button
+          className="text-left w-full text-sm italic text-muted-foreground leading-snug hover:text-foreground transition-colors"
+          title="Tap to edit"
+          onClick={() => { setNote(journal?.note ?? ''); setEditingNote(true) }}
+        >
+          “{journal?.note}”
+        </button>
+      ) : (
+        <div className="space-y-1">
+          <textarea
             value={note}
             maxLength={150}
+            rows={2}
+            autoFocus={editingNote}
             onChange={e => setNote(e.target.value)}
-            onBlur={saveNote}
-            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveNote() } }}
             placeholder="Dear diary… (150 chars)"
-            className="h-8 text-sm"
+            className="w-full text-sm rounded-md border border-input bg-transparent px-3 py-2 shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50 resize-none"
           />
-          <Button size="sm" className="h-8" variant="outline" onClick={saveNote} disabled={note.trim() === (journal?.note ?? '')}>
-            Save
-          </Button>
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-muted-foreground">{note.length}/150</p>
+            <div className="flex gap-1.5">
+              {editingNote && (
+                <Button size="sm" className="h-7 text-xs" variant="ghost" onClick={() => { setNote(journal?.note ?? ''); setEditingNote(false) }}>
+                  Cancel
+                </Button>
+              )}
+              <Button size="sm" className="h-7 text-xs" variant="outline" onClick={saveNote} disabled={note.trim() === (journal?.note ?? '')}>
+                Save
+              </Button>
+            </div>
+          </div>
         </div>
-        <p className="text-[10px] text-muted-foreground text-right">{note.length}/150</p>
-      </div>
+      )}
     </div>
   )
 }

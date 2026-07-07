@@ -3,8 +3,8 @@ import { format, parseISO } from 'date-fns'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Check, Flame, MessageSquarePlus, Pencil, Plus, Trophy, X } from 'lucide-react'
-import type { CoachMessage, Goal, GoalEntry, JournalDay } from '@/types'
+import { CalendarDays, Check, Flame, MessageSquarePlus, Pencil, Plus, Trophy, X } from 'lucide-react'
+import type { CalendarEntry, CoachMessage, Goal, GoalEntry, JournalDay } from '@/types'
 import {
   beatsPB, currentStreak, entriesForGoal, entryByDate, lastNDays, latestValue,
   personalBest, STREAK_MILESTONES, targetProgress, thisWeekCount, todayKey,
@@ -13,6 +13,8 @@ import { celebrate } from '@/lib/celebrate'
 import { GOAL_ICONS, goalColor } from './goal-meta'
 import { CoachCard } from './coach-card'
 import { ChoresCard } from './chores-card'
+import { CalPalTodayCard } from '@/components/calpal/calpal-today-card'
+import { occursOn } from '@/lib/calendar-utils'
 
 interface TodayTabProps {
   goals: Goal[]
@@ -20,15 +22,17 @@ interface TodayTabProps {
   log: (goalId: string, date: string, value: number, note?: string) => Promise<void>
   removeEntry: (goalId: string, date: string) => Promise<void>
   onManageGoals: () => void
+  onOpenCalPal: () => void
   coachMessages: CoachMessage[]
   createCoachMessage: (m: Omit<CoachMessage, 'id' | 'created_at' | 'is_read'>) => Promise<void>
   markCoachMessageRead: (id: string) => Promise<void>
   journalDays: JournalDay[]
+  calendarEntries: CalendarEntry[]
 }
 
 export function TodayTab({
-  goals, entries, log, removeEntry, onManageGoals,
-  coachMessages, createCoachMessage, markCoachMessageRead, journalDays,
+  goals, entries, log, removeEntry, onManageGoals, onOpenCalPal,
+  coachMessages, createCoachMessage, markCoachMessageRead, journalDays, calendarEntries,
 }: TodayTabProps) {
   const activeGoals = goals.filter(g => g.is_active)
   const today = todayKey()
@@ -61,6 +65,7 @@ export function TodayTab({
           <p className="text-sm text-muted-foreground">
             {doneToday} of {activeGoals.length} goals checked in today
           </p>
+          <TodayEventsLine entries={calendarEntries} today={today} />
         </div>
         <Button variant="outline" size="sm" onClick={onManageGoals}>Manage goals</Button>
       </div>
@@ -86,8 +91,26 @@ export function TodayTab({
         ))}
       </div>
 
+      <CalPalTodayCard onOpen={onOpenCalPal} />
+
       <ChoresCard />
     </div>
+  )
+}
+
+// One quiet line under the date: what's on the calendar today
+function TodayEventsLine({ entries, today }: { entries: CalendarEntry[]; today: string }) {
+  const todays = entries
+    .filter(e => occursOn(e, today))
+    .sort((a, b) => a.event_time.localeCompare(b.event_time))
+  if (todays.length === 0) return null
+  return (
+    <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-0.5 min-w-0">
+      <CalendarDays className="w-3.5 h-3.5 shrink-0 text-primary/70" />
+      <span className="truncate">
+        {todays.map(e => `${e.event_time ? e.event_time + ' ' : ''}${e.title}`).join(' · ')}
+      </span>
+    </p>
   )
 }
 

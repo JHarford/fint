@@ -180,7 +180,7 @@ export function CsvUpload() {
               )}
             </div>
             <div className="flex gap-2 flex-wrap">
-              <Button size="sm" onClick={() => navigateTo({ tab: 'transactions', action: 'suggest-recurring' })}>
+              <Button size="sm" onClick={() => navigateTo({ tab: 'finance', action: 'suggest-recurring' })}>
                 <Sparkles className="w-3.5 h-3.5 mr-1" /> Review recurring suggestions
               </Button>
               <Button size="sm" variant="outline" onClick={handleReset}>Done</Button>
