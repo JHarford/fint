@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Trash2, UtensilsCrossed } from 'lucide-react'
 import { useFoodLogs } from '@/hooks/use-food-logs'
 import { useCalPalSettings } from '@/hooks/use-calpal-settings'
-import { ACTIVITY_LEVELS, caloriesOn, dailyTarget } from '@/lib/calpal'
+import { ACTIVITY_LEVELS, caloriesOn, dailyTarget, macrosOn, proteinTarget } from '@/lib/calpal'
 import { dateKey, todayKey } from '@/lib/goal-stats'
 import { FoodLogForm } from './food-log-form'
 
@@ -19,8 +19,10 @@ export function CalPalTab() {
   const today = todayKey()
 
   const target = dailyTarget(settings)
-  const eaten = caloriesOn(logs, today)
+  const macros = macrosOn(logs, today)
+  const eaten = macros.calories
   const remaining = target - eaten
+  const proteinGoal = proteinTarget(settings)
   const todayLogs = logs.filter(l => l.date === today)
 
   // Last 30 days of daily totals for the chart (only days with logs)
@@ -65,14 +67,34 @@ export function CalPalTab() {
           />
         </div>
 
-        <FoodLogForm logs={logs} onAdd={(name, kcal) => add(today, name, kcal)} />
+        {/* Protein against the g/kg target */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Protein</span>
+            <span className="tabular-nums">
+              <span className={macros.protein >= proteinGoal ? 'text-emerald-600 font-medium' : ''}>{Math.round(macros.protein)}g</span>
+              <span className="text-muted-foreground"> / {proteinGoal}g</span>
+              <span className="text-muted-foreground"> · fat {Math.round(macros.fat)}g</span>
+            </span>
+          </div>
+          <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full bg-emerald-500 transition-all"
+              style={{ width: `${Math.min(100, proteinGoal > 0 ? (macros.protein / proteinGoal) * 100 : 0)}%` }}
+            />
+          </div>
+        </div>
+
+        <FoodLogForm logs={logs} onAdd={(name, kcal, p, f) => add(today, name, kcal, p, f)} />
 
         {todayLogs.length > 0 && (
           <div className="divide-y">
             {todayLogs.map(l => (
               <div key={l.id} className="flex items-center gap-2 py-1.5">
                 <span className="text-sm flex-1 min-w-0 truncate">{l.name}</span>
-                <span className="text-sm tabular-nums text-muted-foreground">{l.calories.toLocaleString()} kcal</span>
+                <span className="text-xs tabular-nums text-muted-foreground shrink-0">
+                  {l.calories.toLocaleString()} kcal{Number(l.protein) > 0 ? ` · ${Math.round(Number(l.protein))}P` : ''}{Number(l.fat) > 0 ? ` · ${Math.round(Number(l.fat))}F` : ''}
+                </span>
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive hover:text-destructive" title="Remove" onClick={() => remove(l.id).catch(e => console.error(e))}>
                   <Trash2 className="w-3 h-3" />
                 </Button>
@@ -215,6 +237,27 @@ function SettingsCard({ settings, saved, save, target }: {
         />
         <div className="flex justify-between text-[10px] text-muted-foreground">
           <span>−1000 (cut)</span><span>maintain</span><span>+1000 (bulk)</span>
+        </div>
+      </div>
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs">Protein target</Label>
+          <span className="text-xs tabular-nums">
+            <span className="font-medium">{Number(settings.protein_per_kg).toFixed(1)} g/kg</span>
+            <span className="text-muted-foreground"> = {proteinTarget(settings)}g/day</span>
+          </span>
+        </div>
+        <input
+          type="range"
+          min={0.8}
+          max={2.4}
+          step={0.1}
+          value={Number(settings.protein_per_kg)}
+          onChange={e => save({ protein_per_kg: parseFloat(e.target.value) }).catch(err => console.error(err))}
+          className="w-full accent-[var(--primary)]"
+        />
+        <div className="flex justify-between text-[10px] text-muted-foreground">
+          <span>0.8 maintain</span><span>1.6–2.2 building muscle</span><span>2.4</span>
         </div>
       </div>
     </Card>

@@ -224,6 +224,8 @@ export interface FoodLog {
   date: string
   name: string
   calories: number
+  protein: number // grams
+  fat: number // grams
   created_at: string
 }
 
@@ -235,6 +237,7 @@ export interface CalPalSettings {
   age: number
   activity: number // TDEE multiplier: 1.2 sedentary … 1.725 very active
   adjustment: number // kcal surplus (+) or deficit (−) on top of TDEE
+  protein_per_kg: number // daily protein target in g per kg bodyweight
   updated_at: string
 }
 

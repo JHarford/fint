@@ -6,7 +6,7 @@ import type { CalPalSettings } from '@/types'
 // Sensible starting point until the user saves their own numbers
 export const DEFAULT_SETTINGS: CalPalSettings = {
   id: 1, weight_kg: 80, height_cm: 178, sex: 'male', age: 35,
-  activity: 1.4, adjustment: 0, updated_at: '',
+  activity: 1.4, adjustment: 0, protein_per_kg: 1.6, updated_at: '',
 }
 
 export function useCalPalSettings() {
@@ -47,6 +47,7 @@ export function useCalPalSettings() {
       age: next.age,
       activity: next.activity,
       adjustment: next.adjustment,
+      protein_per_kg: next.protein_per_kg,
       updated_at: new Date().toISOString(),
     })
     if (error) {

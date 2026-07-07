@@ -2,7 +2,7 @@ import { Card } from '@/components/ui/card'
 import { UtensilsCrossed } from 'lucide-react'
 import { useFoodLogs } from '@/hooks/use-food-logs'
 import { useCalPalSettings } from '@/hooks/use-calpal-settings'
-import { caloriesOn, dailyTarget } from '@/lib/calpal'
+import { dailyTarget, macrosOn, proteinTarget } from '@/lib/calpal'
 import { todayKey } from '@/lib/goal-stats'
 import { FoodLogForm } from './food-log-form'
 
@@ -15,8 +15,10 @@ export function CalPalTodayCard({ onOpen }: { onOpen: () => void }) {
   if (loading) return null
 
   const target = dailyTarget(settings)
-  const eaten = caloriesOn(logs, today)
+  const macros = macrosOn(logs, today)
+  const eaten = macros.calories
   const remaining = target - eaten
+  const proteinGoal = proteinTarget(settings)
   const todayCount = logs.filter(l => l.date === today).length
 
   return (
@@ -37,7 +39,10 @@ export function CalPalTodayCard({ onOpen }: { onOpen: () => void }) {
           style={{ width: `${Math.min(100, target > 0 ? (eaten / target) * 100 : 0)}%` }}
         />
       </div>
-      <FoodLogForm logs={logs} onAdd={(name, kcal) => add(today, name, kcal)} />
+      <p className="text-[11px] text-muted-foreground tabular-nums -mt-1">
+        Protein <span className={macros.protein >= proteinGoal ? 'text-emerald-600 font-medium' : 'text-foreground'}>{Math.round(macros.protein)}g</span> / {proteinGoal}g
+      </p>
+      <FoodLogForm logs={logs} onAdd={(name, kcal, p, f) => add(today, name, kcal, p, f)} />
     </Card>
   )
 }
@@ -48,16 +53,20 @@ export function CaloriesOnDay({ day }: { day: string }) {
   const { settings } = useCalPalSettings()
   const dayLogs = logs.filter(l => l.date === day)
   if (dayLogs.length === 0) return null
-  const total = dayLogs.reduce((a, l) => a + l.calories, 0)
+  const macros = macrosOn(logs, day)
   const target = dailyTarget(settings)
   return (
     <div className="space-y-1">
       <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Cal Pal</p>
       <p className="text-xs">
-        <span className={`font-semibold tabular-nums ${total > target ? 'text-red-600' : 'text-emerald-700 dark:text-emerald-400'}`}>
-          {total.toLocaleString()} kcal
+        <span className={`font-semibold tabular-nums ${macros.calories > target ? 'text-red-600' : 'text-emerald-700 dark:text-emerald-400'}`}>
+          {macros.calories.toLocaleString()} kcal
         </span>
-        <span className="text-muted-foreground"> of {target.toLocaleString()} · {dayLogs.length} item{dayLogs.length === 1 ? '' : 's'}</span>
+        <span className="text-muted-foreground">
+          {' '}of {target.toLocaleString()}
+          {macros.protein > 0 && ` · ${Math.round(macros.protein)}g protein`}
+          {' '}· {dayLogs.length} item{dayLogs.length === 1 ? '' : 's'}
+        </span>
       </p>
     </div>
   )
