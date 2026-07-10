@@ -1,18 +1,24 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Loader2, Plus, Sparkles, X } from 'lucide-react'
-import { estimateFoods, knownFood, type EstimatedFood } from '@/lib/calpal'
+import { Camera, Loader2, Plus, ScanBarcode, Sparkles, X } from 'lucide-react'
+import {
+  estimateFoods, estimateFoodsFromPhoto, knownFood, lookupBarcode, usualFoods,
+  type EstimatedFood,
+} from '@/lib/calpal'
+import { compressForVision } from '@/lib/image'
 import { hasAnthropicKey } from '@/lib/coach'
+import { todayKey } from '@/lib/goal-stats'
+import { BarcodeScanner } from './barcode-scanner'
 import type { FoodLog } from '@/types'
 
-// Shared logging row: name + kcal/protein/fat + AI estimate. Typing a food
-// you've logged before pre-fills its macros. Calculate splits a description
-// into separate standardised items, each with kcal/P/F, shown as a preview
-// to confirm before they're added.
-export function FoodLogForm({ logs, onAdd }: {
+// Shared logging row: usuals chips + name/kcal/protein/fat + three capture
+// paths (AI text estimate, plate photo, barcode). Repeat foods pre-fill their
+// macros; multi-item estimates land in a confirm-preview.
+export function FoodLogForm({ logs, onAdd, usualsLimit = 6 }: {
   logs: FoodLog[]
   onAdd: (name: string, calories: number, protein: number, fat: number) => Promise<void>
+  usualsLimit?: number
 }) {
   const [name, setName] = useState('')
   const [kcal, setKcal] = useState('')
@@ -22,7 +28,24 @@ export function FoodLogForm({ logs, onAdd }: {
   const [assumption, setAssumption] = useState('')
   const [pending, setPending] = useState<EstimatedFood[] | null>(null)
   const [busy, setBusy] = useState(false)
+  const [scanning, setScanning] = useState(false)
   const [error, setError] = useState('')
+  const photoRef = useRef<HTMLInputElement>(null)
+
+  const usuals = usualFoods(logs, todayKey(), usualsLimit)
+
+  const fillFrom = (item: EstimatedFood) => {
+    setName(item.name)
+    setKcal(String(item.calories))
+    setProtein(item.protein > 0 ? String(item.protein) : '')
+    setFat(item.fat > 0 ? String(item.fat) : '')
+    setTouched(false)
+    setAssumption(item.assumption)
+  }
+
+  const clearForm = () => {
+    setName(''); setKcal(''); setProtein(''); setFat(''); setTouched(false); setAssumption('')
+  }
 
   const onNameChange = (v: string) => {
     setName(v)
@@ -35,30 +58,45 @@ export function FoodLogForm({ logs, onAdd }: {
     }
   }
 
-  const calculate = async () => {
-    if (!name.trim() || busy) return
+  const handleItems = (items: EstimatedFood[]) => {
+    if (items.length === 1) fillFrom(items[0])
+    else setPending(items)
+  }
+
+  const run = async (work: () => Promise<void>) => {
+    if (busy) return
     setBusy(true)
     setError('')
-    setPending(null)
     try {
-      const items = await estimateFoods(name.trim())
-      if (items.length === 1) {
-        // Standardised rename + estimates straight into the fields
-        setName(items[0].name)
-        setKcal(String(items[0].calories))
-        setProtein(String(items[0].protein))
-        setFat(String(items[0].fat))
-        setTouched(false)
-        setAssumption(items[0].assumption)
-      } else {
-        setPending(items)
-      }
+      await work()
     } catch (e) {
-      console.error('Calorie estimate failed:', e)
-      setError(e instanceof Error ? e.message : 'Estimate failed — enter it manually')
+      console.error('Cal Pal action failed:', e)
+      setError(e instanceof Error ? e.message : 'Something went wrong')
     } finally {
       setBusy(false)
     }
+  }
+
+  const calculate = () => run(async () => {
+    if (!name.trim()) return
+    setPending(null)
+    handleItems(await estimateFoods(name.trim()))
+  })
+
+  const onPhotoPicked = (file: File | undefined) => {
+    if (!file) return
+    run(async () => {
+      setPending(null)
+      const base64 = await compressForVision(file)
+      handleItems(await estimateFoodsFromPhoto(base64))
+    })
+  }
+
+  const onBarcode = (code: string) => {
+    setScanning(false)
+    run(async () => {
+      fillFrom(await lookupBarcode(code))
+    })
   }
 
   const submit = async () => {
@@ -67,28 +105,18 @@ export function FoodLogForm({ logs, onAdd }: {
     setError('')
     try {
       await onAdd(name.trim(), n, parseFloat(protein) || 0, parseFloat(fat) || 0)
-      setName(''); setKcal(''); setProtein(''); setFat(''); setTouched(false); setAssumption('')
+      clearForm()
     } catch (e) {
       console.error('Food log failed:', e)
       setError(e instanceof Error ? e.message : 'Could not save')
     }
   }
 
-  const addAllPending = async () => {
-    if (!pending || busy) return
-    setBusy(true)
-    setError('')
-    try {
-      for (const item of pending) await onAdd(item.name, item.calories, item.protein || 0, item.fat || 0)
-      setPending(null)
-      setName(''); setKcal(''); setProtein(''); setFat(''); setTouched(false); setAssumption('')
-    } catch (e) {
-      console.error('Food log failed:', e)
-      setError(e instanceof Error ? e.message : 'Could not save')
-    } finally {
-      setBusy(false)
-    }
-  }
+  const addAllPending = () => run(async () => {
+    for (const item of pending ?? []) await onAdd(item.name, item.calories, item.protein || 0, item.fat || 0)
+    setPending(null)
+    clearForm()
+  })
 
   const removePending = (idx: number) => {
     setPending(prev => {
@@ -99,6 +127,7 @@ export function FoodLogForm({ logs, onAdd }: {
 
   const pendingTotal = (pending ?? []).reduce((a, i) => a + i.calories, 0)
   const pendingProtein = (pending ?? []).reduce((a, i) => a + (i.protein || 0), 0)
+  const ai = hasAnthropicKey()
 
   const numProps = {
     type: 'number' as const,
@@ -110,6 +139,33 @@ export function FoodLogForm({ logs, onAdd }: {
 
   return (
     <div className="space-y-1.5">
+      {/* One-tap usuals */}
+      {usuals.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {usuals.map(u => (
+            <button
+              key={u.id}
+              disabled={busy}
+              title={`${u.calories} kcal — tap to log`}
+              onClick={() => onAdd(u.name, u.calories, Number(u.protein) || 0, Number(u.fat) || 0).catch(e => { console.error(e); setError('Could not save') })}
+              className="text-xs border rounded-full px-2.5 py-1 hover:bg-muted transition-colors text-muted-foreground hover:text-foreground max-w-full"
+            >
+              <span className="truncate">{u.name}</span>
+              <span className="tabular-nums ml-1 opacity-70">{u.calories}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <input
+        ref={photoRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={e => { onPhotoPicked(e.target.files?.[0]); e.target.value = '' }}
+      />
+
       <Input
         value={name}
         onChange={e => onNameChange(e.target.value)}
@@ -126,17 +182,25 @@ export function FoodLogForm({ logs, onAdd }: {
           onChange={e => { setFat(e.target.value); setTouched(true) }} />
       </div>
       <div className="flex items-center gap-1.5">
-        {hasAnthropicKey() && (
+        {ai && (
           <Button variant="outline" size="sm" className="h-8 text-xs" disabled={busy || !name.trim()} onClick={calculate}>
             {busy ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1 text-primary" />}
             Calculate
           </Button>
         )}
-        <Button size="sm" className="h-8 text-xs" disabled={!name.trim() || !kcal} onClick={submit}>
+        {ai && (
+          <Button variant="outline" size="sm" className="h-8 w-8 p-0" title="Photo of your plate" disabled={busy} onClick={() => photoRef.current?.click()}>
+            <Camera className="w-3.5 h-3.5" />
+          </Button>
+        )}
+        <Button variant="outline" size="sm" className="h-8 w-8 p-0" title="Scan a barcode" disabled={busy} onClick={() => setScanning(true)}>
+          <ScanBarcode className="w-3.5 h-3.5" />
+        </Button>
+        <Button size="sm" className="h-8 text-xs ml-auto" disabled={!name.trim() || !kcal} onClick={submit}>
           <Plus className="w-3.5 h-3.5 mr-1" /> Add
         </Button>
-        {assumption && <span className="text-[10px] text-muted-foreground truncate flex-1">{assumption}</span>}
       </div>
+      {assumption && <p className="text-[10px] text-muted-foreground truncate">{assumption}</p>}
 
       {/* Multi-item estimate: confirm before logging each as its own entry */}
       {pending && (
@@ -167,6 +231,8 @@ export function FoodLogForm({ logs, onAdd }: {
         </div>
       )}
       {error && <p className="text-xs text-destructive">{error}</p>}
+
+      {scanning && <BarcodeScanner onResult={onBarcode} onClose={() => setScanning(false)} />}
     </div>
   )
 }

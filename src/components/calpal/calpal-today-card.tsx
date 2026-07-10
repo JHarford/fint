@@ -42,7 +42,7 @@ export function CalPalTodayCard({ onOpen }: { onOpen: () => void }) {
       <p className="text-[11px] text-muted-foreground tabular-nums -mt-1">
         Protein <span className={macros.protein >= proteinGoal ? 'text-emerald-600 font-medium' : 'text-foreground'}>{Math.round(macros.protein)}g</span> / {proteinGoal}g
       </p>
-      <FoodLogForm logs={logs} onAdd={(name, kcal, p, f) => add(today, name, kcal, p, f)} />
+      <FoodLogForm logs={logs} usualsLimit={3} onAdd={(name, kcal, p, f) => add(today, name, kcal, p, f)} />
     </Card>
   )
 }

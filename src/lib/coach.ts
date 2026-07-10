@@ -1,8 +1,17 @@
-import { differenceInCalendarDays, format, getISODay, parseISO } from 'date-fns'
-import type { Goal, GoalEntry, JournalDay } from '@/types'
+import { differenceInCalendarDays, format, getISODay, parseISO, subDays } from 'date-fns'
+import type { CalPalSettings, Chore, ChoreLog, FoodLog, Goal, GoalEntry, JournalDay } from '@/types'
 import {
   currentStreak, dateKey, entriesForGoal, STREAK_MILESTONES, targetProgress, thisWeekCount,
 } from './goal-stats'
+import { dailyTarget, macrosOn, proteinTarget } from './calpal'
+
+// Everything beyond goals that the coach can see
+export interface LifeContext {
+  foodLogs: FoodLog[]
+  calpalSettings: CalPalSettings
+  chores: Chore[]
+  choreLogs: ChoreLog[]
+}
 
 // A coaching insight derived locally from goal data — no API needed.
 export interface CoachInsight {
@@ -13,8 +22,30 @@ export interface CoachInsight {
   summary: string
 }
 
-export function detectInsights(goals: Goal[], allEntries: GoalEntry[]): CoachInsight[] {
+export function detectInsights(goals: Goal[], allEntries: GoalEntry[], life?: LifeContext): CoachInsight[] {
   const insights: CoachInsight[] = []
+
+  // Cal Pal: consecutive fully-logged days over the calorie target
+  if (life && life.foodLogs.length > 0) {
+    const target = dailyTarget(life.calpalSettings)
+    let overDays = 0
+    for (let i = 1; i <= 7; i++) {
+      const day = dateKey(subDays(new Date(), i))
+      const m = macrosOn(life.foodLogs, day)
+      if (m.calories === 0) break // unlogged day — stop counting
+      if (m.calories > target) overDays++
+      else break
+    }
+    if (overDays >= 2) {
+      insights.push({
+        goalId: 'calpal',
+        goalName: 'Cal Pal',
+        kind: 'behind_target',
+        tone: 'support',
+        summary: `${overDays} days in a row over the ${target.toLocaleString()} kcal target. No drama — plan today's meals now, before hunger does it for you.`,
+      })
+    }
+  }
 
   for (const goal of goals.filter(g => g.is_active)) {
     const entries = entriesForGoal(allEntries, goal.id)
@@ -137,11 +168,42 @@ function describeGoal(goal: Goal, entries: GoalEntry[]): string {
   return `- "${goal.name}" (numeric target, ${goal.unit}${goal.start_value} → ${goal.unit}${goal.target_value ?? '?'}${goal.target_date ? ` by ${goal.target_date}` : ''}): currently ${goal.unit}${progress.current} (${Math.round(progress.pct)}%).`
 }
 
+// Last 7 logged days of eating vs targets, for the coaching prompt
+function describeCalPal(life: LifeContext): string {
+  const target = dailyTarget(life.calpalSettings)
+  const pTarget = proteinTarget(life.calpalSettings)
+  const lines: string[] = []
+  for (let i = 0; i < 7; i++) {
+    const day = dateKey(subDays(new Date(), i))
+    const m = macrosOn(life.foodLogs, day)
+    if (m.calories === 0) continue
+    lines.push(`- ${day}${i === 0 ? ' (today so far)' : ''}: ${m.calories} kcal, ${Math.round(m.protein)}g protein`)
+  }
+  if (lines.length === 0) return ''
+  return `\n\nMy eating (Cal Pal — daily target ${target} kcal${life.calpalSettings.adjustment !== 0 ? ` (${life.calpalSettings.adjustment > 0 ? 'surplus for muscle gain' : 'deficit'})` : ''}, protein target ${pTarget}g):\n${lines.join('\n')}`
+}
+
+function describeChores(life: LifeContext): string {
+  if (life.chores.length === 0) return ''
+  const weekAgo = dateKey(subDays(new Date(), 7))
+  const nameById = new Map(life.chores.map(c => [c.id, c.name]))
+  const counts = new Map<string, number>()
+  for (const l of life.choreLogs) {
+    if (l.date < weekAgo) continue
+    const name = nameById.get(l.chore_id)
+    if (name) counts.set(name, (counts.get(name) ?? 0) + 1)
+  }
+  if (counts.size === 0) return ''
+  const line = Array.from(counts.entries()).map(([n, c]) => `${n} ×${c}`).join(', ')
+  return `\n\nHouse jobs done this week: ${line}.`
+}
+
 export async function generateCoaching(
   goals: Goal[],
   allEntries: GoalEntry[],
   insights: CoachInsight[],
   journal: JournalDay[] = [],
+  life?: LifeContext,
 ): Promise<string> {
   // Loaded on demand so the SDK stays out of the main bundle
   const { default: Anthropic } = await import('@anthropic-ai/sdk')
@@ -177,13 +239,14 @@ export async function generateCoaching(
     model: 'claude-opus-4-8',
     max_tokens: 1024,
     system:
-      'You are the personal coach inside LifeFlow, a life-planning app. You know the user\'s goals and recent record. ' +
+      'You are the personal coach inside LifeFlow, a life-planning app. You know the user\'s goals, eating record and recent activity. ' +
       'Write a short, warm, personal coaching note (under 120 words). Be specific to their actual data — reference real streaks, slips, and numbers. ' +
       'Never shame or lecture. If they slipped, normalise it and focus on the next small step. If they\'re doing well, say so plainly. ' +
+      'Connect threads when they\'re related (protein and gym days, drinking and calories) but only mention food or house jobs when there\'s something worth saying. ' +
       'End with one concrete, doable suggestion for today. Plain prose, no headings or bullet lists.',
     messages: [{
       role: 'user',
-      content: `Today is ${format(new Date(), 'EEEE d MMMM yyyy')} (${dateKey(new Date())}).\n\nMy goals:\n${goalLines}\n\nWhat's currently flagged:\n${insightLines || '- Nothing flagged; things are broadly on track.'}${noteLines ? `\n\nMy own notes from recent check-ins (use these — they're what actually happened):\n${noteLines}` : ''}${diaryLines ? `\n\nMy diary entries this week:\n${diaryLines}` : ''}\n\nWrite my coaching note for today.`,
+      content: `Today is ${format(new Date(), 'EEEE d MMMM yyyy')} (${dateKey(new Date())}).\n\nMy goals:\n${goalLines}\n\nWhat's currently flagged:\n${insightLines || '- Nothing flagged; things are broadly on track.'}${noteLines ? `\n\nMy own notes from recent check-ins (use these — they're what actually happened):\n${noteLines}` : ''}${diaryLines ? `\n\nMy diary entries this week:\n${diaryLines}` : ''}${life ? describeCalPal(life) : ''}${life ? describeChores(life) : ''}\n\nWrite my coaching note for today.`,
     }],
   })
 
