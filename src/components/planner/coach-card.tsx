@@ -3,7 +3,10 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Flame, HeartHandshake, Loader2, Sparkles, TrendingUp, X } from 'lucide-react'
 import type { CoachMessage, Goal, GoalEntry, JournalDay } from '@/types'
-import { detectInsights, generateCoaching, hasAnthropicKey, type CoachInsight } from '@/lib/coach'
+import { detectInsights, generateCoaching, hasAnthropicKey, type CoachInsight, type LifeContext } from '@/lib/coach'
+import { useFoodLogs } from '@/hooks/use-food-logs'
+import { useCalPalSettings } from '@/hooks/use-calpal-settings'
+import { useChores } from '@/hooks/use-chores'
 
 interface CoachCardProps {
   goals: Goal[]
@@ -24,14 +27,23 @@ export function CoachCard({ goals, goalEntries, messages, createMessage, markRea
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState('')
 
-  const insights = useMemo(() => detectInsights(goals, goalEntries), [goals, goalEntries])
+  // The coach sees the whole app: goals, food, house jobs
+  const { logs: foodLogs } = useFoodLogs()
+  const { settings: calpalSettings } = useCalPalSettings()
+  const { chores, logs: choreLogs } = useChores()
+  const life: LifeContext = useMemo(
+    () => ({ foodLogs, calpalSettings, chores, choreLogs }),
+    [foodLogs, calpalSettings, chores, choreLogs],
+  )
+
+  const insights = useMemo(() => detectInsights(goals, goalEntries, life), [goals, goalEntries, life])
   const unread = messages.filter(m => !m.is_read)
 
   const askCoach = async () => {
     setGenerating(true)
     setError('')
     try {
-      const note = await generateCoaching(goals, goalEntries, insights, journalDays)
+      const note = await generateCoaching(goals, goalEntries, insights, journalDays, life)
       if (note) {
         await createMessage({
           message: note,

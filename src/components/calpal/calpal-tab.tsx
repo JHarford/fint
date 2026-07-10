@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react'
 import { format, parseISO, subDays } from 'date-fns'
-import { Bar, BarChart, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, Cell, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Trash2, UtensilsCrossed } from 'lucide-react'
+import { Scale, Trash2, TrendingDown, TrendingUp, UtensilsCrossed } from 'lucide-react'
 import { useFoodLogs } from '@/hooks/use-food-logs'
+import { useWeightLogs } from '@/hooks/use-weight-logs'
 import { useCalPalSettings } from '@/hooks/use-calpal-settings'
 import { ACTIVITY_LEVELS, caloriesOn, dailyTarget, macrosOn, proteinTarget } from '@/lib/calpal'
 import { dateKey, todayKey } from '@/lib/goal-stats'
@@ -139,8 +140,118 @@ export function CalPalTab() {
         )}
       </Card>
 
+      <WeightCard settings={settings} save={save} />
+
       <SettingsCard settings={settings} saved={saved} save={save} target={target} />
     </div>
+  )
+}
+
+// Weigh-ins over time. Logging also updates the live bodyweight in settings,
+// so the calorie target and g/kg protein goal follow your actual weight.
+function WeightCard({ settings, save }: {
+  settings: ReturnType<typeof useCalPalSettings>['settings']
+  save: ReturnType<typeof useCalPalSettings>['save']
+}) {
+  const { logs, logWeight } = useWeightLogs()
+  const [val, setVal] = useState('')
+  const [error, setError] = useState('')
+  const today = todayKey()
+  const todayLog = logs.find(l => l.date === today)
+
+  const data = useMemo(() =>
+    [...logs]
+      .filter(l => parseISO(l.date) >= subDays(new Date(), 90))
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(l => ({ date: l.date, kg: Number(l.weight_kg) })),
+  [logs])
+
+  const latest = data[data.length - 1]
+  const monthAgoKey = format(subDays(new Date(), 30), 'yyyy-MM-dd')
+  const monthAgo = data.filter(d => d.date <= monthAgoKey).pop() ?? data[0]
+  const delta = latest && monthAgo && latest.date !== monthAgo.date ? latest.kg - monthAgo.kg : null
+
+  const submit = async () => {
+    const w = parseFloat(val)
+    if (isNaN(w) || w < 25 || w > 350) return
+    setError('')
+    try {
+      await logWeight(today, w)
+      await save({ weight_kg: w }) // target + protein goal follow the scale
+      setVal('')
+    } catch (e) {
+      console.error('Weigh-in failed:', e)
+      setError(e instanceof Error ? e.message : 'Could not save')
+    }
+  }
+
+  return (
+    <Card className="py-4 px-4 gap-3">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <Scale className="w-4 h-4 text-muted-foreground" />
+          <span className="font-display font-semibold">Weight</span>
+          {latest && (
+            <span className="text-sm tabular-nums">
+              <span className="font-semibold">{latest.kg}kg</span>
+              {delta !== null && Math.abs(delta) >= 0.1 && (
+                <span className={`ml-1.5 text-xs inline-flex items-center gap-0.5 ${delta < 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  {delta < 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
+                  {delta > 0 ? '+' : ''}{delta.toFixed(1)}kg / 30d
+                </span>
+              )}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Input
+            type="number"
+            inputMode="decimal"
+            step="0.1"
+            min={25}
+            value={val}
+            onChange={e => setVal(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') submit() }}
+            placeholder={todayLog ? `${Number(todayLog.weight_kg)}kg today` : 'kg'}
+            className="h-8 w-24 text-sm"
+          />
+          <Button size="sm" className="h-8 text-xs" disabled={!val} onClick={submit}>
+            {todayLog ? 'Update' : 'Weigh in'}
+          </Button>
+        </div>
+      </div>
+
+      {data.length >= 2 ? (
+        <div className="h-24">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ top: 5, right: 10, bottom: 0, left: 10 }}>
+              <XAxis
+                dataKey="date"
+                tickFormatter={d => format(parseISO(d), 'd/M')}
+                tick={{ fontSize: 9 }}
+                tickLine={false}
+                axisLine={false}
+                interval="preserveStartEnd"
+              />
+              <YAxis hide domain={['dataMin - 1', 'dataMax + 1']} />
+              <Tooltip
+                formatter={(v) => [`${Number(v).toFixed(1)} kg`, 'Weight']}
+                labelFormatter={d => format(parseISO(String(d)), 'EEE d MMM')}
+                contentStyle={{ fontSize: 12 }}
+              />
+              <Line type="monotone" dataKey="kg" stroke="var(--primary)" strokeWidth={2}
+                dot={{ r: 2, fill: 'var(--primary)', strokeWidth: 0 }} isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Weigh in each morning and the trend shows up here — that's how you know the
+          {settings.adjustment < 0 ? ' deficit' : settings.adjustment > 0 ? ' surplus' : ' target'} is actually working.
+        </p>
+      )}
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </Card>
   )
 }
 

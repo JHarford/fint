@@ -241,6 +241,13 @@ export interface CalPalSettings {
   updated_at: string
 }
 
+export interface WeightLog {
+  id: string
+  date: string
+  weight_kg: number
+  created_at: string
+}
+
 // For CSV upload preview
 export interface CsvRow {
   number: string
