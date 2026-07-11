@@ -15,10 +15,11 @@ import type { FoodLog } from '@/types'
 // Shared logging row: usuals chips + name/kcal/protein/fat + three capture
 // paths (AI text estimate, plate photo, barcode). Repeat foods pre-fill their
 // macros; multi-item estimates land in a confirm-preview.
-export function FoodLogForm({ logs, onAdd, usualsLimit = 6 }: {
+export function FoodLogForm({ logs, onAdd, usualsLimit = 6, day }: {
   logs: FoodLog[]
   onAdd: (name: string, calories: number, protein: number, fat: number) => Promise<void>
   usualsLimit?: number
+  day?: string // the day being logged (usuals already on it are hidden)
 }) {
   const [name, setName] = useState('')
   const [kcal, setKcal] = useState('')
@@ -32,7 +33,7 @@ export function FoodLogForm({ logs, onAdd, usualsLimit = 6 }: {
   const [error, setError] = useState('')
   const photoRef = useRef<HTMLInputElement>(null)
 
-  const usuals = usualFoods(logs, todayKey(), usualsLimit)
+  const usuals = usualFoods(logs, day ?? todayKey(), usualsLimit)
 
   const fillFrom = (item: EstimatedFood) => {
     setName(item.name)

@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
-import { format, parseISO, subDays } from 'date-fns'
+import { addDays, format, parseISO, subDays } from 'date-fns'
 import { Bar, BarChart, Cell, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Scale, Trash2, TrendingDown, TrendingUp, UtensilsCrossed } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Scale, Trash2, TrendingDown, TrendingUp, UtensilsCrossed } from 'lucide-react'
+import { DatePicker } from '@/components/ui/date-picker'
 import { useFoodLogs } from '@/hooks/use-food-logs'
 import { useWeightLogs } from '@/hooks/use-weight-logs'
 import { useCalPalSettings } from '@/hooks/use-calpal-settings'
@@ -18,13 +19,16 @@ export function CalPalTab() {
   const { logs, loading, add, remove } = useFoodLogs()
   const { settings, saved, save } = useCalPalSettings()
   const today = todayKey()
+  // Any day can be viewed and backfilled — forgot to log Saturday's dinner? Go back.
+  const [day, setDay] = useState(today)
+  const isToday = day === today
 
   const target = dailyTarget(settings)
-  const macros = macrosOn(logs, today)
+  const macros = macrosOn(logs, day)
   const eaten = macros.calories
   const remaining = target - eaten
   const proteinGoal = proteinTarget(settings)
-  const todayLogs = logs.filter(l => l.date === today)
+  const dayLogs = logs.filter(l => l.date === day)
 
   // Last 30 days of daily totals for the chart (only days with logs)
   const history = useMemo(() => {
@@ -44,17 +48,40 @@ export function CalPalTab() {
         <p className="text-sm text-muted-foreground">Log what you eat — repeat foods remember their calories</p>
       </div>
 
-      {/* Today */}
+      {/* Selected day (defaults to today; browse back to view or backfill) */}
       <Card className="py-4 px-4 gap-3">
+        <div className="flex items-center gap-1.5">
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" title="Previous day"
+            onClick={() => setDay(dateKey(subDays(parseISO(day), 1)))}>
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <DatePicker value={day} onChange={v => setDay(v || today)} />
+          </div>
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" title="Next day" disabled={isToday}
+            onClick={() => setDay(dateKey(addDays(parseISO(day), 1)))}>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+          {!isToday && (
+            <Button variant="outline" size="sm" className="h-8 text-xs shrink-0" onClick={() => setDay(today)}>
+              Today
+            </Button>
+          )}
+        </div>
+
         <div className="flex items-end justify-between flex-wrap gap-2">
           <div>
             <p className="text-2xl font-semibold tabular-nums">
               {eaten.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">/ {target.toLocaleString()} kcal</span>
             </p>
             <p className={`text-sm ${remaining < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
-              {remaining >= 0
-                ? `${remaining.toLocaleString()} kcal left today`
-                : `${Math.abs(remaining).toLocaleString()} kcal over today's target`}
+              {isToday
+                ? (remaining >= 0
+                    ? `${remaining.toLocaleString()} kcal left today`
+                    : `${Math.abs(remaining).toLocaleString()} kcal over today's target`)
+                : (remaining >= 0
+                    ? `${remaining.toLocaleString()} kcal under target that day`
+                    : `${Math.abs(remaining).toLocaleString()} kcal over target that day`)}
             </p>
           </div>
           <p className="text-xs text-muted-foreground">
@@ -86,11 +113,11 @@ export function CalPalTab() {
           </div>
         </div>
 
-        <FoodLogForm logs={logs} onAdd={(name, kcal, p, f) => add(today, name, kcal, p, f)} />
+        <FoodLogForm logs={logs} day={day} onAdd={(name, kcal, p, f) => add(day, name, kcal, p, f)} />
 
-        {todayLogs.length > 0 && (
+        {dayLogs.length > 0 && (
           <div className="divide-y">
-            {todayLogs.map(l => (
+            {dayLogs.map(l => (
               <div key={l.id} className="flex items-center gap-2 py-1.5">
                 <span className="text-sm flex-1 min-w-0 truncate">{l.name}</span>
                 <span className="text-xs tabular-nums text-muted-foreground shrink-0">
@@ -127,7 +154,13 @@ export function CalPalTab() {
                   contentStyle={{ fontSize: 12 }}
                 />
                 <ReferenceLine y={target} stroke="var(--primary)" strokeDasharray="4 4" strokeOpacity={0.6} />
-                <Bar dataKey="total" radius={[3, 3, 0, 0]} isAnimationActive={false}>
+                <Bar
+                  dataKey="total"
+                  radius={[3, 3, 0, 0]}
+                  isAnimationActive={false}
+                  className="cursor-pointer"
+                  onClick={(d: { payload?: { date?: string } }) => { const dt = d?.payload?.date; if (dt) setDay(dt) }}
+                >
                   {history.map(h => (
                     <Cell key={h.date} fill={h.total > target ? '#dc2626' : 'var(--primary)'} fillOpacity={h.total === 0 ? 0 : 0.85} />
                   ))}
