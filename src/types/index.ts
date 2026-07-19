@@ -151,6 +151,7 @@ export interface Goal {
   color: string
   start_date: string
   frequency_per_week: number | null
+  daily_target: number | null // habit goals: times per day (e.g. 5 pints of water); null = once
   start_value: number
   target_value: number | null
   unit: string

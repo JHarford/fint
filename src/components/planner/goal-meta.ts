@@ -58,6 +58,7 @@ export interface GoalPreset {
   icon: string
   color: string
   frequency_per_week: number | null
+  daily_target?: number
   unit: string
   description: string
   record_direction?: RecordDirection
@@ -69,6 +70,7 @@ export const GOAL_PRESETS: GoalPreset[] = [
   { name: 'Exercise', goal_type: 'habit', icon: 'dumbbell', color: 'emerald', frequency_per_week: 4, unit: '', description: 'Gym, run, or any workout' },
   { name: 'Running', goal_type: 'habit', icon: 'footprints', color: 'cyan', frequency_per_week: 3, unit: '', description: '' },
   { name: 'Healthy eating', goal_type: 'habit', icon: 'salad', color: 'emerald', frequency_per_week: 7, unit: '', description: '' },
+  { name: 'Water', goal_type: 'habit', icon: 'water', color: 'blue', frequency_per_week: 7, daily_target: 5, unit: 'pint', description: '5 pints a day' },
   { name: 'Read', goal_type: 'habit', icon: 'book', color: 'violet', frequency_per_week: 5, unit: '', description: '' },
   { name: 'Meditate', goal_type: 'habit', icon: 'brain', color: 'blue', frequency_per_week: 7, unit: '', description: '' },
   { name: 'Early night', goal_type: 'habit', icon: 'moon', color: 'violet', frequency_per_week: 5, unit: '', description: 'In bed before 11pm' },

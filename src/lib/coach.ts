@@ -94,7 +94,14 @@ export function detectInsights(goals: Goal[], allEntries: GoalEntry[], life?: Li
 
     if (goal.goal_type === 'habit') {
       const target = goal.frequency_per_week || 7
-      const done = thisWeekCount(entries)
+      // Count-per-day habits: a day only counts once the daily target is hit
+      const daily = goal.daily_target && goal.daily_target > 1 ? goal.daily_target : null
+      const done = daily
+        ? entries.filter(e => {
+            const weekStart = dateKey(subDays(new Date(), getISODay(new Date()) - 1))
+            return e.date >= weekStart && Number(e.value) >= daily
+          }).length
+        : thisWeekCount(entries)
       const isoDay = getISODay(new Date()) // Mon=1 .. Sun=7
       const daysLeftInWeek = 8 - isoDay // including today
       const needed = target - done
