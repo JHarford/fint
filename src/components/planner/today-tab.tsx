@@ -142,10 +142,26 @@ function GoalRow({ goal, goalEntries, log, removeEntry }: GoalRowProps) {
     setNoteOpen(false)
   }
 
+  // Habits with a per-day count ("5 pints of water"): each tap adds one;
+  // a tap once full clears the day
+  const dailyTarget = goal.goal_type === 'habit' && goal.daily_target && goal.daily_target > 1
+    ? goal.daily_target : null
+
   // Tap a day to cycle its state. Abstinence has an explicit "slipped" state so a
   // bad day can be recorded honestly; habits are just done/not done.
   const cycle = async (date: string) => {
     const entry = byDate.get(date)
+    if (dailyTarget) {
+      const count = entry ? Number(entry.value) : 0
+      if (count >= dailyTarget) await removeEntry(goal.id, date)
+      else {
+        await log(goal.id, date, count + 1)
+        if (date === today && count + 1 === dailyTarget) {
+          celebrate({ title: `${goal.name} target hit!`, subtitle: `${dailyTarget}/${dailyTarget} today`, kind: 'milestone' })
+        }
+      }
+      return
+    }
     if (!entry) {
       await log(goal.id, date, 1)
       if (date === today) cheerForToday()
@@ -192,6 +208,24 @@ function GoalRow({ goal, goalEntries, log, removeEntry }: GoalRowProps) {
           <TargetLogger goal={goal} todayEntry={todayEntry} goalEntries={goalEntries} log={log} />
         ) : goal.goal_type === 'record' ? (
           <RecordLogger goal={goal} todayEntry={todayEntry} goalEntries={goalEntries} log={log} />
+        ) : dailyTarget ? (
+          <div className="flex items-center justify-between gap-3 w-full sm:w-auto">
+            <CountStrip goal={goal} byDate={byDate} target={dailyTarget} onTap={cycle} />
+            <div className="flex items-center gap-1">
+              <Button size="sm" className="h-8" onClick={() => cycle(today)}>
+                <Plus className="w-3.5 h-3.5 mr-0.5" />
+                1{goal.unit ? ` ${goal.unit}` : ''}
+                <span className="ml-1.5 tabular-nums opacity-80">
+                  {Math.min(dailyTarget, todayEntry ? Number(todayEntry.value) : 0)}/{dailyTarget}
+                </span>
+              </Button>
+              {todayEntry && !todayEntry.note && !noteOpen && (
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground" title="Add a note about today" onClick={openNote}>
+                  <MessageSquarePlus className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+          </div>
         ) : (
           <div className="flex items-center justify-between gap-3 w-full sm:w-auto">
             <WeekStrip goal={goal} byDate={byDate} onCycle={cycle} />
@@ -243,6 +277,15 @@ function StatBadge({ goal, goalEntries }: { goal: Goal; goalEntries: GoalEntry[]
     return (
       <span className="inline-flex items-center gap-0.5 text-xs font-medium text-orange-600 shrink-0">
         <Flame className="w-3.5 h-3.5" /> {streak} day{streak === 1 ? '' : 's'}
+      </span>
+    )
+  }
+  if (goal.goal_type === 'habit' && goal.daily_target && goal.daily_target > 1) {
+    const today = entryByDate(goalEntries).get(todayKey())
+    const count = Math.min(goal.daily_target, today ? Number(today.value) : 0)
+    return (
+      <span className={`text-xs font-medium shrink-0 tabular-nums ${count >= goal.daily_target ? 'text-green-600' : 'text-muted-foreground'}`}>
+        {count}/{goal.daily_target} today
       </span>
     )
   }
@@ -341,6 +384,41 @@ function WeekStrip({ goal, byDate, onCycle }: {
             onClick={() => onCycle(date)}
             className={`w-4 h-4 sm:w-3.5 sm:h-3.5 rounded-full transition-colors ${beforeStart ? 'bg-muted/30 cursor-default' : cls}`}
           />
+        )
+      })}
+    </div>
+  )
+}
+
+// Count-per-day habits: one vertical bar per day, filling from the bottom
+// with each tap (each pint of water). Tap a bar to add one to that day.
+function CountStrip({ goal, byDate, target, onTap }: {
+  goal: Goal
+  byDate: Map<string, GoalEntry>
+  target: number
+  onTap: (date: string) => void
+}) {
+  const color = goalColor(goal.color)
+  const days = lastNDays(7)
+  return (
+    <div className="flex items-end gap-1.5 sm:gap-1 shrink-0">
+      {days.map(date => {
+        const beforeStart = date < goal.start_date
+        const count = Math.min(target, Number(byDate.get(date)?.value ?? 0))
+        const pct = (count / target) * 100
+        return (
+          <button
+            key={date}
+            disabled={beforeStart}
+            title={`${format(parseISO(date), 'EEE d MMM')} — ${count}/${target}${goal.unit ? ` ${goal.unit}s` : ''}`}
+            onClick={() => onTap(date)}
+            className={`relative w-4 sm:w-3.5 h-7 rounded-sm overflow-hidden bg-muted ${beforeStart ? 'opacity-30 cursor-default' : 'hover:opacity-80'}`}
+          >
+            <span
+              className={`absolute inset-x-0 bottom-0 ${color.solid} transition-all ${count >= target ? '' : 'opacity-80'}`}
+              style={{ height: `${pct}%` }}
+            />
+          </button>
         )
       })}
     </div>

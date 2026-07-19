@@ -16,6 +16,7 @@ export interface GoalFormValues {
   color: string
   start_date: string
   frequency_per_week: number | null
+  daily_target: number | null
   start_value: number
   target_value: number | null
   unit: string
@@ -40,6 +41,7 @@ const emptyForm = (): GoalFormValues => ({
   color: 'emerald',
   start_date: todayKey(),
   frequency_per_week: 3,
+  daily_target: null,
   start_value: 0,
   target_value: null,
   unit: '',
@@ -72,6 +74,7 @@ export function GoalFormDialog({ open, onOpenChange, goal, onSave }: GoalFormDia
         color: goal.color,
         start_date: goal.start_date,
         frequency_per_week: goal.frequency_per_week,
+        daily_target: goal.daily_target !== null && goal.daily_target !== undefined ? Number(goal.daily_target) : null,
         start_value: Number(goal.start_value),
         target_value: goal.target_value !== null ? Number(goal.target_value) : null,
         unit: goal.unit,
@@ -99,6 +102,7 @@ export function GoalFormDialog({ open, onOpenChange, goal, onSave }: GoalFormDia
       icon: p.icon,
       color: p.color,
       frequency_per_week: p.frequency_per_week,
+      daily_target: p.daily_target ?? null,
       unit: p.unit,
       record_direction: p.record_direction ?? 'lower',
     }))
@@ -113,9 +117,10 @@ export function GoalFormDialog({ open, onOpenChange, goal, onSave }: GoalFormDia
         ...form,
         name: form.name.trim(),
         frequency_per_week: form.goal_type === 'habit' ? (form.frequency_per_week || 7) : null,
+        daily_target: form.goal_type === 'habit' && form.daily_target && form.daily_target > 1 ? form.daily_target : null,
         start_value: form.goal_type === 'target' ? form.start_value : 0,
         target_value: form.goal_type === 'target' ? form.target_value : null,
-        unit: form.goal_type === 'target' || form.goal_type === 'record' ? form.unit : '',
+        unit: form.goal_type === 'target' || form.goal_type === 'record' || (form.goal_type === 'habit' && form.daily_target) ? form.unit : '',
         target_date: form.goal_type === 'target' ? form.target_date : null,
         weekly_spend: form.goal_type === 'abstinence' ? form.weekly_spend : null,
         weekly_units: form.goal_type === 'abstinence' ? form.weekly_units : null,
@@ -231,17 +236,42 @@ export function GoalFormDialog({ open, onOpenChange, goal, onSave }: GoalFormDia
             )}
 
             {form.goal_type === 'habit' && (
-              <div className="space-y-1.5">
-                <Label htmlFor="goal-freq">Times per week</Label>
-                <Input
-                  id="goal-freq"
-                  type="number"
-                  min={1}
-                  max={7}
-                  value={form.frequency_per_week ?? ''}
-                  onChange={e => set('frequency_per_week', parseInt(e.target.value, 10) || null)}
-                />
-              </div>
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="goal-freq">Times per week</Label>
+                  <Input
+                    id="goal-freq"
+                    type="number"
+                    min={1}
+                    max={7}
+                    value={form.frequency_per_week ?? ''}
+                    onChange={e => set('frequency_per_week', parseInt(e.target.value, 10) || null)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="goal-daily">Times per day <span className="text-muted-foreground font-normal">(optional — e.g. 5 pints of water)</span></Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="goal-daily"
+                      type="number"
+                      min={2}
+                      max={20}
+                      value={form.daily_target ?? ''}
+                      onChange={e => set('daily_target', parseInt(e.target.value, 10) || null)}
+                      placeholder="leave empty for once a day"
+                      className="flex-1"
+                    />
+                    {form.daily_target ? (
+                      <Input
+                        value={form.unit}
+                        onChange={e => set('unit', e.target.value)}
+                        placeholder="unit, e.g. pint"
+                        className="w-28"
+                      />
+                    ) : null}
+                  </div>
+                </div>
+              </>
             )}
 
             {form.goal_type === 'target' && (

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { format, parseISO } from 'date-fns'
+import { format, parseISO, startOfWeek } from 'date-fns'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -208,15 +208,24 @@ function GoalStats({ goal, goalEntries }: { goal: Goal; goalEntries: GoalEntry[]
   }
 
   if (goal.goal_type === 'habit') {
-    const week = thisWeekCount(goalEntries)
+    const daily = goal.daily_target && goal.daily_target > 1 ? goal.daily_target : null
+    // Count-per-day habits: a day only counts once it hits the daily target
+    const week = daily
+      ? goalEntries.filter(e => {
+          const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
+          return e.date >= weekStart && Number(e.value) >= daily
+        }).length
+      : thisWeekCount(goalEntries)
     const target = goal.frequency_per_week || 7
-    const total = totalDone(goalEntries)
+    const total = daily
+      ? goalEntries.filter(e => Number(e.value) >= daily).length
+      : totalDone(goalEntries)
     const days = daysSinceStart(goal)
     const perWeekAvg = days >= 7 ? (total / (days / 7)).toFixed(1) : String(total)
     return (
       <div className="flex flex-wrap gap-x-6 gap-y-2 sm:pl-12">
-        <Stat label="This week" value={`${week}/${target}`} highlight={week >= target} />
-        <Stat label="Total done" value={String(total)} />
+        <Stat label={daily ? 'Full days this week' : 'This week'} value={`${week}/${target}`} highlight={week >= target} />
+        <Stat label={daily ? 'Full days' : 'Total done'} value={String(total)} />
         <Stat label="Avg / week" value={perWeekAvg} />
       </div>
     )
