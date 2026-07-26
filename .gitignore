@@ -26,3 +26,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Bank-statement drop folder (contains personal financial data)
+drop/

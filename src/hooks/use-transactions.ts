@@ -10,12 +10,24 @@ export function useTransactions() {
 
   const fetch = useCallback(async () => {
     if (initialLoad.current) setLoading(true)
-    const { data, error } = await supabase
-      .from('transactions')
-      .select('*')
-      .order('date', { ascending: false })
+    // PostgREST caps a single response at 1000 rows. The transaction table has
+    // grown past that, so page through it — otherwise the oldest months silently
+    // vanish from the dashboard, grid and cashflow chart.
+    const pageSize = 1000
+    const all: Transaction[] = []
+    let error: unknown = null
+    for (let from = 0; ; from += pageSize) {
+      const { data, error: err } = await supabase
+        .from('transactions')
+        .select('*')
+        .order('date', { ascending: false })
+        .range(from, from + pageSize - 1)
+      if (err) { error = err; break }
+      all.push(...(data || []))
+      if (!data || data.length < pageSize) break
+    }
     if (error) console.error('Error fetching transactions:', error)
-    else setTransactions(data || [])
+    else setTransactions(all)
     if (initialLoad.current) {
       setLoading(false)
       initialLoad.current = false
