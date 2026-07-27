@@ -1,7 +1,7 @@
 {
   "name": "lifeflow",
   "private": true,
-  "version": "1.2.18",
+  "version": "1.2.19",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "import": "node scripts/import.mjs",
     "balances": "node scripts/set-balances.mjs",
-    "doctor": "node scripts/doctor.mjs"
+    "doctor": "node scripts/doctor.mjs",
+    "analyse": "node scripts/analyse.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
