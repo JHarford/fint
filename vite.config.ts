@@ -48,7 +48,12 @@ export default defineConfig({
       workbox: {
         // App shell + assets are precached; Supabase/Anthropic API calls always hit the network
         globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
+        // The marketing page at /landing is a separate 1.9MB static document —
+        // keep it out of the app's precache and out of the SPA navigation
+        // fallback (otherwise the SW serves the app shell at /landing).
+        globIgnores: ['landing/**'],
         navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/landing/],
         // Web Push + notification-click handlers live outside the generated SW
         importScripts: ['push-sw.js'],
       },
