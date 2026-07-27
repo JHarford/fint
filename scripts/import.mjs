@@ -38,35 +38,57 @@ async function importFile(path, sources) {
   const rows = parseHeaderedCsv(text)
   if (!rows.length) { console.log(`  ${basename(path)}: no parseable rows, skipping`); return null }
 
-  // Resolve source: --source flag wins, else auto-detect by Account column.
-  let sourceName = flags.source
-  if (!sourceName) {
-    const acct = rows.find(r => r.account)?.account?.trim()
-    sourceName = ACCOUNT_TO_SOURCE[acct]
-    if (!sourceName) {
-      console.log(`  ${basename(path)}: unknown account "${acct}". Add it to ACCOUNT_TO_SOURCE or pass --source. Skipping.`)
+  // A Barclays export can contain SEVERAL accounts in one file. Split rows by
+  // their Account column and import each group into its own source — dumping
+  // everything into the first-detected source misfiles rows and, because
+  // dedupe is per-source, re-importing a per-account export later would then
+  // duplicate every one of them.
+  const groups = new Map() // source name -> rows
+  const unknownAccounts = new Set()
+  if (flags.source) {
+    const accounts = new Set(rows.map(r => r.account).filter(Boolean))
+    if (accounts.size > 1) {
+      console.log(`  ${basename(path)}: contains ${accounts.size} accounts (${[...accounts].join('; ')}) — refusing to force them all into "${flags.source}". Drop the --source flag to auto-split.`)
       return null
     }
+    groups.set(flags.source, rows)
+  } else {
+    for (const r of rows) {
+      const name = ACCOUNT_TO_SOURCE[r.account?.trim()]
+      if (!name) { unknownAccounts.add(r.account || '(blank)'); continue }
+      const arr = groups.get(name) ?? []
+      arr.push(r)
+      groups.set(name, arr)
+    }
+    if (unknownAccounts.size) {
+      console.log(`  ${basename(path)}: skipping rows for unknown account(s) ${[...unknownAccounts].join('; ')} — add them to ACCOUNT_TO_SOURCE or pass --source.`)
+    }
+    if (!groups.size) return null
   }
-  const source = sources.find(s => s.name.toLowerCase() === sourceName.toLowerCase())
-  if (!source) { console.log(`  ${basename(path)}: no source named "${sourceName}". Skipping.`); return null }
 
-  const existing = await existingNumbers(source.id)
-  const fresh = rows.filter(r => !existing.has(r.number))
-  const dates = fresh.map(r => r.date).sort()
-  console.log(`  ${basename(path)} → ${source.name}: ${rows.length} rows, ${fresh.length} new` +
-    (fresh.length ? ` (${dates[0]} → ${dates[dates.length - 1]})` : ''))
+  const results = []
+  for (const [sourceName, groupRows] of groups) {
+    const source = sources.find(s => s.name.toLowerCase() === sourceName.toLowerCase())
+    if (!source) { console.log(`  ${basename(path)}: no source named "${sourceName}". Skipping that group.`); continue }
 
-  if (!fresh.length) return { source: source.name, inserted: 0, cached: 0, llm: 0 }
+    const existing = await existingNumbers(source.id)
+    const fresh = groupRows.filter(r => !existing.has(r.number))
+    const dates = fresh.map(r => r.date).sort()
+    console.log(`  ${basename(path)} → ${source.name}: ${groupRows.length} rows, ${fresh.length} new` +
+      (fresh.length ? ` (${dates[0]} → ${dates[dates.length - 1]})` : ''))
 
-  const inserted = await upsertTransactions(source.id, fresh)
-  let cat = { cached: 0, llm: 0 }
-  if (flags.categorise && inserted.length) {
-    process.stdout.write(`    categorising ${inserted.length}…`)
-    cat = await categoriseNew(inserted)
-    console.log(` ${cat.cached} from cache, ${cat.llm} via AI`)
+    if (!fresh.length) { results.push({ source: source.name, inserted: 0, cached: 0, llm: 0 }); continue }
+
+    const inserted = await upsertTransactions(source.id, fresh)
+    let cat = { cached: 0, llm: 0 }
+    if (flags.categorise && inserted.length) {
+      process.stdout.write(`    categorising ${inserted.length}…`)
+      cat = await categoriseNew(inserted)
+      console.log(` ${cat.cached} from cache, ${cat.llm} via AI`)
+    }
+    results.push({ source: source.name, inserted: inserted.length, ...cat })
   }
-  return { source: source.name, inserted: inserted.length, ...cat }
+  return results.length ? results : null
 }
 
 async function main() {
@@ -86,7 +108,7 @@ async function main() {
   for (const t of targets) {
     const res = await importFile(t, sources)
     if (res) {
-      summary.push(res)
+      summary.push(...res)
       if (dropMode) {
         mkdirSync(PROCESSED_DIR, { recursive: true })
         renameSync(t, join(PROCESSED_DIR, basename(t)))

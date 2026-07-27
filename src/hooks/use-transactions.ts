@@ -17,10 +17,14 @@ export function useTransactions() {
     const all: Transaction[] = []
     let error: unknown = null
     for (let from = 0; ; from += pageSize) {
+      // Secondary sort on id: `date` alone is not unique, and PostgREST range
+      // pagination over a non-unique order can duplicate/skip rows at page
+      // boundaries (Postgres gives ties no stable order between requests).
       const { data, error: err } = await supabase
         .from('transactions')
         .select('*')
         .order('date', { ascending: false })
+        .order('id', { ascending: true })
         .range(from, from + pageSize - 1)
       if (err) { error = err; break }
       all.push(...(data || []))
@@ -48,6 +52,7 @@ export function useTransactions() {
         .from('transactions')
         .select('number')
         .eq('source_id', sourceId)
+        .order('id', { ascending: true })   // stable order — unordered range pagination can skip/repeat rows
         .range(from, from + pageSize - 1)
       for (const t of data || []) set.add(t.number)
       if (!data || data.length < pageSize) break

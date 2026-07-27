@@ -60,6 +60,20 @@ One snapshot per account per day; re-running the same day overwrites, so it's
 safe to run daily. These snapshots feed the "Available cash / Net worth" line on
 the dashboard's Cashflow & Balance chart.
 
+## Doctor — when the numbers look wrong
+
+```bash
+npm run doctor              # audit: duplicates, misfiled rows, untagged transfers
+npm run doctor -- --fix     # apply the high-confidence repairs it lists
+```
+
+Finds and (with `--fix`) repairs the known ways monthly spend gets inflated:
+rows imported into the wrong source from a multi-account CSV, the same
+statement imported under two numbering schemes, credit-card repayments and
+own-account moves not tagged `Transfer`, and poisoned category rules. Ends
+with a month-by-month income/spend table showing before → after, plus the
+biggest spend rows to eyeball. Audit mode never writes anything.
+
 ## Notes
 
 - **Sign convention:** banks use negative = money out; Fint flips this on import

@@ -125,6 +125,7 @@ export async function existingNumbers(sourceId) {
     const { data, error } = await supabase
       .from('transactions').select('number')
       .eq('source_id', sourceId)
+      .order('id', { ascending: true })   // stable order — unordered range pagination can skip/repeat rows
       .range(from, from + pageSize - 1)
     if (error) throw error
     for (const t of data) set.add(t.number)
@@ -165,20 +166,20 @@ For each transaction, return:
 - recurring_item_id: if this transaction is clearly the realised payment of one of the active recurring obligations (provided in the user message), return its id. Otherwise null. Match by merchant name + roughly matching amount (within ~15%). One-off purchases, irregular spend, salary deposits = null.
 
 Category guidance:
-- Income: anything coming IN (salary, transfers in, refunds over £100)
+- Income: money arriving from OUTSIDE (salary, client payments, interest, refunds over £100). NOT money the user moved in from their own other accounts (savings, Marcus/Goldman, ISA withdrawals) — that is Transfer.
 - Tax: HMRC, VAT, council tax (council tax may also be Housing — prefer Housing for direct debits to councils labelled "council tax")
 - Housing: mortgage, rent, council tax DDs, ground rent, home maintenance
-- Debt: loan repayments, credit card repayments to non-current accounts
+- Debt: repayments to EXTERNAL lenders only (personal loans, car finance, someone else's money). The user's own credit-card repayments are Transfer, never Debt — the card's purchases are already the spend.
 - Utilities: gas, electric, water, broadband, mobile, TV licence
 - Insurance: any insurance premium
-- Savings: transfers to savings accounts/ISAs
+- Savings: almost never correct for a bank row — moving money into the user's own savings/ISA/investments is Transfer, not spend. Reserve Savings for payments into a product that isn't the user's own account (e.g. a child's fund held elsewhere)
 - Subscriptions: streaming, software, news, gym membership
 - Health: pharmacy, dentist, GP, supplements, therapy, pet insurance for vet
 - Budget: day-to-day spending (groceries, eating out, coffee, shopping, leisure) — this is the catch-all for variable lifestyle spend
 - Business: anything business expense related, supplier paid by Joe personally for company use
 - Transport: fuel, parking, train, taxi, Uber, car finance, car insurance is Insurance not Transport
 - Education: schools, courses, books for learning
-- Transfer: money moving between the user's OWN accounts — current↔savings, paying off their own credit card (memos like "Payment, Thank You", "B/CARD ... DDR/BBP", a 16-digit card number + BBP/DDR), moving to an ISA/investment, "Withdrawal to <account>", "Transfer to/from <account>". Internal shuffling, NOT external spend or income. Do NOT use Transfer for payments to other people or companies — those keep their real category (Debt/Budget/etc).
+- Transfer: money moving between the user's OWN accounts — current↔savings, paying off their own credit card (memos like "Payment, Thank You", "B/CARD ... DDR/BBP", a 16-digit card number + BBP/DDR), moving to an ISA/investment, "Withdrawal to <account>", "Transfer to/from <account>". This includes the user's accounts at OTHER banks not visible here (e.g. Marcus / Goldman Sachs / Saga savings) — in either direction. Internal shuffling, NOT external spend or income. When in doubt between Transfer and Income/Savings/Debt for an account-to-account move, choose Transfer. Do NOT use Transfer for payments to other people or companies — those keep their real category (Debt/Budget/etc).
 
 Be decisive. If genuinely ambiguous, prefer Budget. Never invent categories outside the list. Never invent recurring_item_ids — only use ids exactly as provided.`
 
