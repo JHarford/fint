@@ -132,8 +132,8 @@ function projectAccountCurve(
       }
     }
 
-    bal -= monthlyOut
-    bal -= monthlyIn
+    bal -= monthlyOut   // items leaving this account
+    bal += monthlyIn    // items arriving at this account (target_source_id) — raises the balance
   }
   return points
 }

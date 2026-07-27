@@ -38,11 +38,21 @@ export function useTransactions() {
   useEffect(() => subscribe('transactions', fetch), [fetch])
 
   const getExistingNumbers = async (sourceId: string): Promise<Set<string>> => {
-    const { data } = await supabase
-      .from('transactions')
-      .select('number')
-      .eq('source_id', sourceId)
-    return new Set((data || []).map(t => t.number))
+    // Page through — an account with >1000 transactions would otherwise report
+    // re-imported rows as "new" in the CSV preview (the upsert still dedups on
+    // write, so this only affected the preview count).
+    const pageSize = 1000
+    const set = new Set<string>()
+    for (let from = 0; ; from += pageSize) {
+      const { data } = await supabase
+        .from('transactions')
+        .select('number')
+        .eq('source_id', sourceId)
+        .range(from, from + pageSize - 1)
+      for (const t of data || []) set.add(t.number)
+      if (!data || data.length < pageSize) break
+    }
+    return set
   }
 
   const bulkInsert = async (sourceId: string, rows: CsvRow[]) => {

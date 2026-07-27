@@ -25,7 +25,7 @@ export interface CategoriserResult {
 const SYSTEM_PROMPT = `You categorise UK personal-finance transactions and link them to recurring obligations.
 
 For each transaction, return:
-- category: ONE of [${CATEGORIES.join(', ')}]
+- category: ONE of [${CATEGORIES.join(', ')}, Transfer]
 - subcategory: a short, specific label (e.g. "Groceries", "Eating Out", "Fuel", "Coffee", "Streaming", "Mortgage", "Salary"). 1-3 words.
 - pattern: the canonical merchant/payee key you would use to cache this rule. Strip transaction IDs, dates, branch numbers. Examples: "TESCO STORES 1234 HEREFORD" -> "TESCO STORES"; "AMZN MKTPLACE B12345" -> "AMAZON"; "OCTOPUS ENERGY DD" -> "OCTOPUS ENERGY". Uppercase, no punctuation noise.
 - recurring_item_id: if this transaction is clearly the realised payment of one of the active recurring obligations (provided in the user message), return its id. Otherwise null. Match by merchant name + roughly matching amount (within ~15%). One-off purchases, irregular spend, salary deposits = null.
@@ -44,6 +44,7 @@ Category guidance:
 - Business: anything business expense related, supplier paid by Joe personally for company use
 - Transport: fuel, parking, train, taxi, Uber, car finance, car insurance is Insurance not Transport
 - Education: schools, courses, books for learning
+- Transfer: money moving between the user's OWN accounts — current↔savings, paying off their own credit card (memos like "Payment, Thank You", "B/CARD ... DDR/BBP", a 16-digit card number + BBP/DDR), moving to an ISA/investment, "Withdrawal to <account>", "Transfer to/from <account>". This is internal shuffling, NOT external spend or income. Do NOT use Transfer for payments to other people or companies (a real supplier, a friend, a creditor like a loan company) — those keep their real category (Debt/Budget/etc).
 
 Be decisive. If genuinely ambiguous, prefer Budget. Never invent categories outside the list. Never invent recurring_item_ids — only use ids exactly as provided.`
 
@@ -133,7 +134,7 @@ export async function categoriseTransactions(
     if (
       typeof o.id !== 'string' ||
       typeof o.category !== 'string' ||
-      !(CATEGORIES as readonly string[]).includes(o.category) ||
+      !((CATEGORIES as readonly string[]).includes(o.category) || o.category === 'Transfer') ||
       typeof o.subcategory !== 'string' ||
       typeof o.pattern !== 'string'
     ) return false

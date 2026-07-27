@@ -201,9 +201,11 @@ export function projectFutureObligations(
   for (const o of obligations) {
     if (!o.is_active) continue
     const itemStart = new Date(o.next_date)
-    if (isAfter(itemStart, end)) {
-      if (o.frequency === 'one-off') continue
-    }
+    // Never project an obligation before it starts. The backward walk below
+    // (getPreviousOccurrence from next_date) would otherwise manufacture phantom
+    // occurrences in columns earlier than next_date, corrupting every historical
+    // column the moment an obligation with a future/mid-history start is added.
+    if (isAfter(itemStart, end)) continue
     const endDate = o.end_date ? new Date(o.end_date) : null
     if (endDate && isAfter(start, endDate)) continue
 
@@ -227,7 +229,7 @@ export function projectFutureObligations(
     let safety = 0
     while (isBefore(date, end) || isWithinInterval(date, { start, end })) {
       if (safety++ > 400) break
-      if (isWithinInterval(date, { start, end }) && (!endDate || !isAfter(date, endDate))) {
+      if (isWithinInterval(date, { start, end }) && !isBefore(date, itemStart) && (!endDate || !isAfter(date, endDate))) {
         result.push({
           id: `future-${o.id}`, name: o.name, amount: effectiveAmount,
           category: o.category, subcategory: o.subcategory,

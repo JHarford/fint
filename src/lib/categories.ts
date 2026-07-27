@@ -1,6 +1,7 @@
 import {
   TrendingUp, Landmark, Home, CreditCard, Zap, Shield, PiggyBank,
   Repeat, HeartPulse, Wallet, Briefcase, Car, GraduationCap, HelpCircle,
+  ArrowLeftRight,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -14,8 +15,20 @@ export type Category = typeof CATEGORIES[number]
 
 export const UNCATEGORISED = 'Uncategorised' as const
 
+// Transfer is deliberately NOT a spend category: it marks money moving between
+// the user's own accounts (savings↔current, paying own card, ISA top-ups). It's
+// excluded from income, spending and the cashflow in/out bars so those figures
+// reflect real external money, not internal shuffling.
+export const TRANSFER = 'Transfer' as const
+
+// True for real external cashflow — money genuinely entering or leaving the
+// user's total holdings (i.e. everything except internal transfers).
+export function isCashflow(category: string): boolean {
+  return category !== TRANSFER
+}
+
 // Tailwind needs every used class string to appear literally — no string interpolation.
-export const CATEGORY_META: Record<Category | typeof UNCATEGORISED, {
+export const CATEGORY_META: Record<Category | typeof UNCATEGORISED | typeof TRANSFER, {
   icon: LucideIcon
   color: string  // text-* for icon
   bg: string     // bg-*/dark:bg-* for tile background
@@ -34,6 +47,7 @@ export const CATEGORY_META: Record<Category | typeof UNCATEGORISED, {
   Business:      { icon: Briefcase,     color: 'text-blue-600',         bg: 'bg-blue-100 dark:bg-blue-950',       bar: 'bg-blue-600' },
   Transport:     { icon: Car,           color: 'text-sky-600',          bg: 'bg-sky-100 dark:bg-sky-950',         bar: 'bg-sky-600' },
   Education:     { icon: GraduationCap, color: 'text-teal-600',         bg: 'bg-teal-100 dark:bg-teal-950',       bar: 'bg-teal-600' },
+  Transfer:      { icon: ArrowLeftRight, color: 'text-zinc-500',        bg: 'bg-zinc-100 dark:bg-zinc-800',       bar: 'bg-zinc-400' },
   Uncategorised: { icon: HelpCircle,    color: 'text-muted-foreground', bg: 'bg-muted',                           bar: 'bg-muted-foreground/40' },
 }
 

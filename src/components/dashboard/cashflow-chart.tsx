@@ -61,6 +61,13 @@ export function CashflowChart({ sources, transactions, balances, debts, assets }
   // Net-worth offset from the currently-selected accounts: fold in whole-portfolio
   // assets and liabilities as a constant shift on the cash line. Approximate
   // (assets/debts are point-in-time), but gives the right level.
+  // Selected accounts with no recorded balance are absent from the cash line
+  // (we can't anchor a reconstruction without one) — surfaced in the caption.
+  const missingBalance = useMemo(() => {
+    const anchored = new Set(balances.map(b => b.source_id))
+    return usableSources.filter(s => selected.has(s.id) && !anchored.has(s.id)).map(s => s.name)
+  }, [usableSources, selected, balances])
+
   const netWorthOffset = useMemo(() => {
     const liabilities = debts.filter(d => d.include_in_net_worth).reduce((s, d) => s + Number(d.current_balance), 0)
     const assetTotal = assets.filter(a => a.include_in_net_worth).reduce((s, a) => s + Number(a.current_value), 0)
@@ -112,6 +119,7 @@ export function CashflowChart({ sources, transactions, balances, debts, assets }
       let moneyOut = 0
       for (const t of txns) {
         if (!inRange(parseISO(t.date))) continue
+        if (t.category === 'Transfer') continue    // internal shuffling, not real cashflow
         if (t.amount < 0) moneyIn += -t.amount     // negative = money in
         else moneyOut += t.amount                  // positive = money out
       }
@@ -232,9 +240,13 @@ export function CashflowChart({ sources, transactions, balances, debts, assets }
 
         <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
           <Legend color={CASH_COLOR} label={metric === 'networth' ? 'Net worth (left axis)' : 'Available cash (left axis)'} line />
-          <Legend color={IN_COLOR} label="Money in (right axis)" />
-          <Legend color={OUT_COLOR} label="Money out (right axis)" />
+          <Legend color={IN_COLOR} label="Income in (right axis)" />
+          <Legend color={OUT_COLOR} label="Spending out (right axis)" />
         </div>
+        <p className="text-[11px] text-muted-foreground/80">
+          In/out bars show real external money — transfers between your own accounts are excluded.
+          {missingBalance.length > 0 && ` The cash line excludes ${missingBalance.join(', ')} (no recorded balance yet).`}
+        </p>
       </CardContent>
     </Card>
   )
@@ -286,8 +298,8 @@ function CashflowTooltip({ active, payload, label, metric }: {
   return (
     <div className="rounded-lg border bg-background px-3 py-2 text-xs shadow-md space-y-1">
       <p className="font-medium">{label}</p>
-      <p className="flex justify-between gap-4"><span className="text-green-600">Money in</span><span>{gbpFull(p.moneyIn)}</span></p>
-      <p className="flex justify-between gap-4"><span className="text-red-600">Money out</span><span>{gbpFull(-p.moneyOut)}</span></p>
+      <p className="flex justify-between gap-4"><span className="text-green-600">Income</span><span>{gbpFull(p.moneyIn)}</span></p>
+      <p className="flex justify-between gap-4"><span className="text-red-600">Spending</span><span>{gbpFull(-p.moneyOut)}</span></p>
       <p className="flex justify-between gap-4 border-t pt-1"><span>Net</span><span className={net >= 0 ? 'text-green-600' : 'text-red-600'}>{gbpFull(net)}</span></p>
       {p.cash != null && (
         <p className="flex justify-between gap-4 border-t pt-1">

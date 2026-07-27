@@ -25,6 +25,7 @@ export function MonthlyAnalysis({ transactions, categoryBudgets }: Props) {
 
   const monthTxs = useMemo(() => {
     return transactions.filter(t => {
+      if (t.category === 'Transfer') return false // internal moves aren't income or spend
       const d = new Date(t.date)
       return d.getFullYear() === monthKey.year && d.getMonth() === monthKey.month
     })
@@ -38,7 +39,7 @@ export function MonthlyAnalysis({ transactions, categoryBudgets }: Props) {
     const y = d.getFullYear(), m = d.getMonth()
     const map = new Map<string, number>()
     for (const t of transactions) {
-      if (t.amount <= 0) continue
+      if (t.amount <= 0 || t.category === 'Transfer') continue
       const td = new Date(t.date)
       if (td.getFullYear() !== y || td.getMonth() !== m) continue
       const cat = t.category || UNCATEGORISED
