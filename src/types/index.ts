@@ -17,6 +17,7 @@ export interface Transaction {
   source_id: string
   number: string
   date: string
+  accrual_date: string | null  // P&L recognition month; null = use `date` (see migration-019)
   account: string
   amount: number
   category: string

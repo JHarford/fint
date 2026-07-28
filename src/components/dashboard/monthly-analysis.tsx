@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ChevronDown, ChevronLeft, ChevronRight, Target, TrendingDown, TrendingUp } from 'lucide-react'
-import { CATEGORIES, CATEGORY_META, UNCATEGORISED } from '@/lib/categories'
+import { CATEGORIES, CATEGORY_META, UNCATEGORISED, isPL } from '@/lib/categories'
 import type { Transaction, CategoryBudget } from '@/types'
 
 interface Props {
@@ -25,8 +25,8 @@ export function MonthlyAnalysis({ transactions, categoryBudgets }: Props) {
 
   const monthTxs = useMemo(() => {
     return transactions.filter(t => {
-      if (t.category === 'Transfer') return false // internal moves aren't income or spend
-      const d = new Date(t.date)
+      if (!isPL(t.category)) return false // internal transfers + one-off payouts aren't income or spend
+      const d = new Date(t.accrual_date ?? t.date) // recognise in earned month when set (e.g. drifted salary)
       return d.getFullYear() === monthKey.year && d.getMonth() === monthKey.month
     })
   }, [transactions, monthKey])
@@ -39,8 +39,8 @@ export function MonthlyAnalysis({ transactions, categoryBudgets }: Props) {
     const y = d.getFullYear(), m = d.getMonth()
     const map = new Map<string, number>()
     for (const t of transactions) {
-      if (t.amount <= 0 || t.category === 'Transfer') continue
-      const td = new Date(t.date)
+      if (t.amount <= 0 || !isPL(t.category)) continue
+      const td = new Date(t.accrual_date ?? t.date)
       if (td.getFullYear() !== y || td.getMonth() !== m) continue
       const cat = t.category || UNCATEGORISED
       map.set(cat, (map.get(cat) ?? 0) + t.amount)

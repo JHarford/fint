@@ -1,7 +1,7 @@
 import {
   TrendingUp, Landmark, Home, CreditCard, Zap, Shield, PiggyBank,
   Repeat, HeartPulse, Wallet, Briefcase, Car, GraduationCap, HelpCircle,
-  ArrowLeftRight,
+  ArrowLeftRight, HandCoins,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -21,14 +21,28 @@ export const UNCATEGORISED = 'Uncategorised' as const
 // reflect real external money, not internal shuffling.
 export const TRANSFER = 'Transfer' as const
 
+// Payout is a sentinel like Transfer: real external money in (insurance
+// settlements, windfalls, one-off receipts) that is NOT operating income. It
+// stays in the cashflow bars and balance (the cash genuinely arrived) but is
+// excluded from the income/spend P&L so it doesn't masquerade as salary/revenue.
+export const PAYOUT = 'Payout' as const
+
 // True for real external cashflow — money genuinely entering or leaving the
-// user's total holdings (i.e. everything except internal transfers).
+// user's total holdings (i.e. everything except internal transfers). A Payout
+// IS cashflow (the money really moved), so only Transfer is excluded here.
 export function isCashflow(category: string): boolean {
   return category !== TRANSFER
 }
 
+// True for rows that belong in the income/spend P&L — genuine earnings and
+// spending. Excludes internal Transfers AND one-off Payouts (real cash, but not
+// income or spend). This is the accrual/earnings view, distinct from isCashflow.
+export function isPL(category: string): boolean {
+  return category !== TRANSFER && category !== PAYOUT
+}
+
 // Tailwind needs every used class string to appear literally — no string interpolation.
-export const CATEGORY_META: Record<Category | typeof UNCATEGORISED | typeof TRANSFER, {
+export const CATEGORY_META: Record<Category | typeof UNCATEGORISED | typeof TRANSFER | typeof PAYOUT, {
   icon: LucideIcon
   color: string  // text-* for icon
   bg: string     // bg-*/dark:bg-* for tile background
@@ -48,6 +62,7 @@ export const CATEGORY_META: Record<Category | typeof UNCATEGORISED | typeof TRAN
   Transport:     { icon: Car,           color: 'text-sky-600',          bg: 'bg-sky-100 dark:bg-sky-950',         bar: 'bg-sky-600' },
   Education:     { icon: GraduationCap, color: 'text-teal-600',         bg: 'bg-teal-100 dark:bg-teal-950',       bar: 'bg-teal-600' },
   Transfer:      { icon: ArrowLeftRight, color: 'text-zinc-500',        bg: 'bg-zinc-100 dark:bg-zinc-800',       bar: 'bg-zinc-400' },
+  Payout:        { icon: HandCoins,     color: 'text-cyan-600',         bg: 'bg-cyan-100 dark:bg-cyan-950',       bar: 'bg-cyan-600' },
   Uncategorised: { icon: HelpCircle,    color: 'text-muted-foreground', bg: 'bg-muted',                           bar: 'bg-muted-foreground/40' },
 }
 
