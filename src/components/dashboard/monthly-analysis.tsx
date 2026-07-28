@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ChevronDown, ChevronLeft, ChevronRight, Target, TrendingDown, TrendingUp } from 'lucide-react'
-import { CATEGORIES, CATEGORY_META, UNCATEGORISED, isPL } from '@/lib/categories'
+import { CATEGORIES, CATEGORY_META, UNCATEGORISED, isPL, isCommitted, categoryOrder } from '@/lib/categories'
 import type { Transaction, CategoryBudget } from '@/types'
 
 interface Props {
@@ -70,7 +70,8 @@ export function MonthlyAnalysis({ transactions, categoryBudgets }: Props) {
           .map(([name, total]) => ({ name, total }))
           .sort((a, b) => b.total - a.total),
       }))
-      .sort((a, b) => b.total - a.total)
+      // Fixed order so a category holds the same position every month.
+      .sort((a, b) => categoryOrder(a.category) - categoryOrder(b.category))
   }, [monthTxs])
 
   const totalSpend = useMemo(() => spendByCategory.reduce((a, b) => a + b.total, 0), [spendByCategory])
@@ -78,6 +79,14 @@ export function MonthlyAnalysis({ transactions, categoryBudgets }: Props) {
     () => monthTxs.filter(t => t.amount < 0).reduce((a, t) => a + Math.abs(t.amount), 0),
     [monthTxs],
   )
+
+  // Split into the two buckets Joe thinks in: committed (unavoidable) vs
+  // discretionary (choices). Each keeps the fixed order from spendByCategory.
+  const committedCats = useMemo(() => spendByCategory.filter(c => isCommitted(c.category)), [spendByCategory])
+  const discretionaryCats = useMemo(() => spendByCategory.filter(c => !isCommitted(c.category)), [spendByCategory])
+  const committedSpend = useMemo(() => committedCats.reduce((a, b) => a + b.total, 0), [committedCats])
+  const discretionarySpend = totalSpend - committedSpend
+  const afterCommitted = totalIncome - committedSpend // headroom once the unavoidable is paid
 
   // Build budgets: per category total + per (category|subcategory) from category_budgets
   const budgets = useMemo(() => {
@@ -115,6 +124,11 @@ export function MonthlyAnalysis({ transactions, categoryBudgets }: Props) {
             <Badge variant="outline" className="text-emerald-600">+{formatCurrency(totalIncome)}</Badge>
             <Badge variant="outline" className="text-red-600">-{formatCurrency(totalSpend)}</Badge>
             <Badge variant="default">Net {formatCurrency(totalIncome - totalSpend)}</Badge>
+            {totalIncome > 0 && (
+              <Badge variant="outline" className={afterCommitted >= 0 ? 'text-emerald-600' : 'text-red-600'} title="Income left after committed outgoings — the pool discretionary spending draws from">
+                {formatCurrency(afterCommitted)} after committed
+              </Badge>
+            )}
             {totalBudget > 0 && (
               <Badge variant="outline" className="gap-1 border-amber-400 text-amber-700 dark:text-amber-400">
                 <Target className="w-3 h-3" />
@@ -128,8 +142,21 @@ export function MonthlyAnalysis({ transactions, categoryBudgets }: Props) {
         {spendByCategory.length === 0 ? (
           <div className="text-sm text-muted-foreground text-center py-6">No spend recorded this month.</div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {spendByCategory.map(c => {
+          <div className="space-y-5">
+            {([
+              { key: 'committed', label: 'Committed', hint: 'hard to avoid', items: committedCats, total: committedSpend },
+              { key: 'discretionary', label: 'Discretionary', hint: 'choices', items: discretionaryCats, total: discretionarySpend },
+            ] as const).filter(g => g.items.length > 0).map(group => (
+              <div key={group.key} className="space-y-3">
+                <div className="flex items-center justify-between border-b pb-1.5">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-semibold">{group.label}</span>
+                    <span className="text-xs text-muted-foreground">{group.hint}</span>
+                  </div>
+                  <span className="text-sm font-semibold tabular-nums">{formatCurrency(group.total)}</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {group.items.map(c => {
               const meta = CATEGORY_META[(CATEGORIES as readonly string[]).includes(c.category) ? c.category as (typeof CATEGORIES)[number] : UNCATEGORISED]
               const Icon = meta.icon
               const pct = totalSpend > 0 ? (c.total / totalSpend) * 100 : 0
@@ -233,7 +260,10 @@ export function MonthlyAnalysis({ transactions, categoryBudgets }: Props) {
                   )}
                 </div>
               )
-            })}
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </CardContent>

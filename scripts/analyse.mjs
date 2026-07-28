@@ -15,8 +15,9 @@ import { supabase } from './lib/ingest.mjs'
 const gbp = (n) => new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(n)
 const pad = (s, n) => String(s).padStart(n)
 
-// Categories that are commitments (bills you can't easily skip) vs lifestyle.
-const COMMITTED = new Set(['Tax', 'Housing', 'Debt', 'Utilities', 'Insurance', 'Subscriptions', 'Education'])
+// Commitments you can't easily skip vs lifestyle. Kept in step with
+// COMMITTED_CATEGORIES in src/lib/categories.ts (the app's source of truth).
+const COMMITTED = new Set(['Housing', 'Tax', 'Debt', 'Utilities', 'Insurance'])
 
 async function loadAll(table) {
   const pageSize = 1000
