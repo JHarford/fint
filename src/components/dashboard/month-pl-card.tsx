@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TrendingUp, TrendingDown } from 'lucide-react'
 import type { Transaction, FutureObligation } from '@/types'
 import { deriveObligationsFromTransactions, projectDerivedItems, projectFutureObligations } from '@/lib/calculations'
+import { isPL } from '@/lib/categories'
 
 interface Props {
   transactions: Transaction[]
@@ -26,7 +27,7 @@ export function MonthPLCard({ transactions, futureObligations }: Props) {
     const today = startOfDay(now)
 
     const monthTx = transactions.filter(t =>
-      t.category !== 'Transfer' && isWithinInterval(parseISO(t.date), { start: mStart, end: mEnd }),
+      isPL(t.category) && isWithinInterval(parseISO(t.date), { start: mStart, end: mEnd }),
     )
     let incomeReceived = 0
     let spentSoFar = 0

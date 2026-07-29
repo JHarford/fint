@@ -15,8 +15,9 @@ import { supabase } from './lib/ingest.mjs'
 const gbp = (n) => new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(n)
 const pad = (s, n) => String(s).padStart(n)
 
-// Categories that are commitments (bills you can't easily skip) vs lifestyle.
-const COMMITTED = new Set(['Tax', 'Housing', 'Debt', 'Utilities', 'Insurance', 'Subscriptions', 'Education'])
+// Commitments you can't easily skip vs lifestyle. Kept in step with
+// COMMITTED_CATEGORIES in src/lib/categories.ts (the app's source of truth).
+const COMMITTED = new Set(['Housing', 'Tax', 'Debt', 'Utilities', 'Insurance'])
 
 async function loadAll(table) {
   const pageSize = 1000
@@ -53,11 +54,16 @@ for (const s of sources) {
 }
 if (staleWarning) console.log('')
 
-// ── monthly aggregates (Transfer excluded) ──────────────────────────────────
+// ── monthly aggregates (Transfer + Payout excluded, accrual-adjusted) ────────
+// Transfer = internal shuffling; Payout = one-off non-operating cash-in
+// (insurance settlements, windfalls) — real cash, but not income or spend.
+// accrual_date, when set, recognises a row in the month it was earned rather
+// than its bank date (e.g. salary runs that drifted across month boundaries),
+// so each month shows one month's pay.
 const byMonth = new Map()
 for (const t of transactions) {
-  if (t.category === 'Transfer') continue
-  const m = t.date.slice(0, 7)
+  if (t.category === 'Transfer' || t.category === 'Payout') continue
+  const m = (t.accrual_date ?? t.date).slice(0, 7)
   const e = byMonth.get(m) ?? { income: 0, spend: 0, committed: 0, discretionary: 0 }
   const a = Number(t.amount)
   if (a < 0) e.income -= a

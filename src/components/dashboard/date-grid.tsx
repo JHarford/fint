@@ -193,7 +193,11 @@ export function DateGrid({ transactions, recurringItems, futureObligations, cate
         ? recurringItems.find(i => i.id === debt.recurring_item_id)
         : undefined
       let monthlyPayment = 0
-      if (linked && linked.amount > 0) {
+      // Only project a curve for debts with a LIVE payment. A settled/paid-off
+      // debt has its recurring item deactivated — without this guard the
+      // backward walk below invents a phantom amortisation curve (e.g. a loan
+      // paid off with a lump shows a fake gentle decline through later months).
+      if (linked && linked.amount > 0 && linked.is_active) {
         if (linked.frequency === 'weekly') monthlyPayment = linked.amount * 52 / 12
         else if (linked.frequency === 'quarterly') monthlyPayment = linked.amount / 3
         else if (linked.frequency === 'annually') monthlyPayment = linked.amount / 12

@@ -1,0 +1,12 @@
+-- LifeFlow migration 019: accrual_date for P&L revenue recognition.
+--
+-- When set, income/P&L analysis recognises a transaction in this month instead
+-- of its bank `date`. The bank `date` stays the real cash/settlement date, so
+-- cashflow bars, balance reconstruction and re-import dedup (hash of
+-- date|amount|memo) are all unaffected — this is a pure accrual overlay.
+--
+-- First use: salary runs whose pay-date drifted across month boundaries (two
+-- runs landed in March 2026, none in July), so each month can recognise exactly
+-- one month's pay. accrual_date is null for the vast majority of rows, which
+-- fall back to their bank date.
+alter table transactions add column if not exists accrual_date date;
