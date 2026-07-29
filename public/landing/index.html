@@ -51,19 +51,19 @@
   .phone .notch{position:absolute;top:1.6%;left:50%;transform:translateX(-50%);width:30%;height:2.6%;background:#1d1a12;border-radius:999px;z-index:2}
 
   /* ---------- hero ---------- */
-  .hero{min-height:100svh;display:grid;align-items:center;padding:120px 0 40px;position:relative}
+  .hero{min-height:100svh;display:grid;align-items:center;padding:120px 0 40px;position:relative;overflow:clip}
   .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:48px;align-items:center}
   .hero h1{font-size:clamp(2.6rem,6vw,4.6rem);margin:18px 0 20px}
   .hero h1 em{font-style:italic;color:var(--clay)}
   .hero .word{display:inline-block;opacity:0;transform:translateY(.6em);animation:wordup .8s forwards cubic-bezier(.22,.9,.3,1)}
   @keyframes wordup{to{opacity:1;transform:none}}
-  .hero-phones{position:relative;height:min(620px,72vh);pointer-events:none}
+  .hero-phones{position:relative;height:calc(min(300px,72vw)*2.25);pointer-events:none}
   .hero-phones .phone{position:absolute;top:0;left:50%;opacity:0;animation:phonein 1s forwards cubic-bezier(.22,.9,.3,1)}
   .hero-phones .p1{transform:translateX(-50%) rotate(0);z-index:3;animation-delay:.35s}
   .hero-phones .p2{transform:translateX(-96%) rotate(-9deg) scale(.9);z-index:2;animation-delay:.5s;filter:brightness(.985)}
   .hero-phones .p3{transform:translateX(-6%) rotate(9deg) scale(.9);z-index:1;animation-delay:.65s;filter:brightness(.985)}
   @keyframes phonein{from{opacity:0;margin-top:70px}to{opacity:1;margin-top:0}}
-  .scroll-hint{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);color:var(--ink-soft);font-size:12px;letter-spacing:.14em;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:8px}
+  .scroll-hint{margin:38px auto 0;color:var(--ink-soft);font-size:12px;letter-spacing:.14em;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:8px}
   .scroll-hint::after{content:"";width:1.5px;height:34px;background:linear-gradient(var(--ink-soft),transparent);animation:drip 1.8s infinite}
   @keyframes drip{0%{transform:scaleY(0);transform-origin:top}45%{transform:scaleY(1);transform-origin:top}55%{transform:scaleY(1);transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
 
@@ -177,7 +177,7 @@
   @media (max-width:900px){
     .hero-grid{grid-template-columns:1fr;text-align:center;gap:26px}
     .hero .sub,.hero .wl-form{margin-left:auto;margin-right:auto}
-    .hero-phones{height:min(480px,58vh);order:2}
+    .hero-phones{height:calc(min(240px,58vw)*2.25);order:2}
     .hero-phones .phone{width:min(240px,58vw)}
     .stage-grid{grid-template-columns:1fr;gap:34px;align-content:center}
     .acts{min-height:230px;order:2;text-align:center}
@@ -320,8 +320,8 @@
       <div class="scard c2" data-reveal data-anim>
         <div>
           <p class="eyebrow">Personal bests</p>
-          <h3>Push-ups, 5k time, a cube solve — watch it move.</h3>
-          <p>Log an attempt whenever you train. LifeFlow keeps the best of the day, charts the trend, and throws confetti when the PB falls.</p>
+          <h3>Push-ups, a 5k time, lengths of the pool — watch it move.</h3>
+          <p>Log an attempt whenever you train — gym, hockey, a Sunday run. LifeFlow keeps the best of the day, charts the trend, and throws confetti when the PB falls.</p>
         </div>
         <div class="visual">
           <div class="pbrow" aria-hidden="true">
@@ -338,7 +338,7 @@
         <div>
           <p class="eyebrow">Count-per-day habits</p>
           <h3>Five pints of water. One tap per pint.</h3>
-          <p>Some habits aren't once a day. Blue bars fill as you go — a full bar is a good day, and the week reads at a glance.</p>
+          <p>Water, steps outside, cups of tea, pages read — plenty of habits count up through the day. Bars fill as you go; a full bar is a good day, and the week reads at a glance.</p>
         </div>
         <div class="visual">
           <div class="waterrow" aria-hidden="true">
@@ -362,6 +362,7 @@
             <span class="chip"><b>Bathroom clean</b> <small>3d</small></span>
             <span class="chip"><b>Hoover</b> <small>6d</small></span>
             <span class="chip"><b>Water plants</b> <small>9d</small></span>
+            <span class="chip"><b>Mow the lawn</b> <small>12d</small></span>
           </div>
         </div>
       </div>
@@ -521,7 +522,7 @@
   if (hp && !reduced) {
     addEventListener('scroll', () => {
       const y = Math.min(scrollY, innerHeight);
-      hp.style.transform = `translateY(${y * 0.18}px)`;
+      hp.style.transform = `translateY(${y * 0.08}px)`;
       hp.style.opacity = String(Math.max(0, 1 - y / (innerHeight * 0.9)));
     }, { passive: true });
   }
