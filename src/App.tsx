@@ -66,11 +66,13 @@ import { useGoalEntries } from '@/hooks/use-goal-entries'
 import { useCalendarEntries } from '@/hooks/use-calendar-entries'
 import { useCoachMessages } from '@/hooks/use-coach-messages'
 import { useJournalDays } from '@/hooks/use-journal-days'
-import { isSupabaseConfigured } from '@/lib/supabase'
+import { useSession } from '@/hooks/use-session'
+import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 import { onNavigate } from '@/lib/nav-bus'
 import { DebugConsole } from '@/components/debug-console'
 import { CelebrationToast } from '@/components/celebration-toast'
-import { CalendarCheck2, CalendarDays, LayoutDashboard, Target, UtensilsCrossed } from 'lucide-react'
+import { Login } from '@/components/auth/login'
+import { CalendarCheck2, CalendarDays, LayoutDashboard, Loader2, LogOut, Target, UtensilsCrossed } from 'lucide-react'
 
 // shortLabel is used in the mobile bottom nav where space is tight
 const NAV_ITEMS = [
@@ -88,7 +90,25 @@ function getStoredMonths(): number {
   } catch { return 12 }
 }
 
+// Auth gate: decide what to render before mounting the data-loading app.
+// AppInner (and all its data hooks) only mounts once there's a session, so
+// every query runs authenticated and RLS scopes it to the signed-in user.
 function App() {
+  const { session, loading: authLoading } = useSession()
+
+  if (!isSupabaseConfigured) return <SetupNotice />
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+  if (!session) return <Login />
+  return <AppInner />
+}
+
+function AppInner() {
   const { sources, loading: sourcesLoading } = useSources()
   const { transactions, loading: txLoading } = useTransactions()
   const { items: recurringItems, loading: riLoading } = useRecurringItems()
@@ -138,8 +158,6 @@ function App() {
 
   const isLoading = sourcesLoading || txLoading || riLoading || foLoading || cbLoading || balLoading || debtsLoading || assetsLoading || goalsLoading || geLoading
 
-  if (!isSupabaseConfigured) return <SetupNotice />
-
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
@@ -169,6 +187,14 @@ function App() {
                 <span className="text-xs text-muted-foreground">months</span>
               </div>
             )}
+            <button
+              onClick={() => supabase.auth.signOut()}
+              className="text-muted-foreground hover:text-foreground transition-colors p-1.5 -mr-1.5"
+              title="Sign out"
+              aria-label="Sign out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </header>
