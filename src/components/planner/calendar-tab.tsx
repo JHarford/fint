@@ -13,11 +13,12 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Bell, Cake, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Film,
-  ImagePlus, Loader2, Minus, Pencil, Plus, SquareCheckBig, Trash2, X, type LucideIcon,
+  ImagePlus, Loader2, Minus, Pencil, Plus, Sparkles, SquareCheckBig, Trash2, X, type LucideIcon,
 } from 'lucide-react'
 import type { CalendarEntry, CalendarEntryType, Goal, GoalEntry, JournalDay } from '@/types'
 import { dateKey, todayKey } from '@/lib/goal-stats'
 import { compressToSquareJpeg } from '@/lib/image'
+import { generateJournalPhoto } from '@/lib/journal-photo'
 import { makeGif, shareOrDownload } from '@/lib/gif'
 import { GOAL_ICONS, goalColor } from './goal-meta'
 import { QuickAdd } from './quick-add'
@@ -491,12 +492,33 @@ function DayJournal({ day, journal, save }: {
   const [editingNote, setEditingNote] = useState(false)
   const [lastDay, setLastDay] = useState(day)
   const [busy, setBusy] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [genError, setGenError] = useState<string | null>(null)
 
   // Sync local note state when the selected day changes
   if (day !== lastDay) {
     setLastDay(day)
     setNote(journal?.note ?? '')
     setEditingNote(false)
+    setGenError(null)
+  }
+
+  // The AI photo is generated from the diary note, so a note is required.
+  const noteForPhoto = (note.trim() || journal?.note || '').trim()
+
+  const onGeneratePhoto = async () => {
+    if (!noteForPhoto || generating) return
+    setGenerating(true)
+    setGenError(null)
+    try {
+      const photo_data = await generateJournalPhoto(noteForPhoto)
+      await save(day, { photo_data })
+    } catch (e) {
+      console.error('Photo generation failed:', e)
+      setGenError(e instanceof Error ? e.message : 'Generation failed')
+    } finally {
+      setGenerating(false)
+    }
   }
 
   const onPhotoPicked = async (file: File | undefined) => {
@@ -536,6 +558,16 @@ function DayJournal({ day, journal, save }: {
         <div className="relative w-full max-w-[240px]">
           <img src={journal.photo_data} alt={`Photo from ${day}`} className="w-full aspect-square rounded-lg object-cover" />
           <div className="absolute top-1.5 right-1.5 flex gap-1">
+            {noteForPhoto && (
+              <button
+                className="bg-foreground/60 text-background rounded-full p-1.5 disabled:opacity-50"
+                title="Regenerate from note with AI"
+                disabled={generating}
+                onClick={onGeneratePhoto}
+              >
+                {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              </button>
+            )}
             <button
               className="bg-foreground/60 text-background rounded-full p-1.5"
               title="Replace photo"
@@ -553,11 +585,25 @@ function DayJournal({ day, journal, save }: {
           </div>
         </div>
       ) : (
-        <Button variant="outline" size="sm" className="h-8 text-xs" disabled={busy} onClick={() => fileRef.current?.click()}>
-          {busy ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Camera className="w-3.5 h-3.5 mr-1" />}
-          Add photo of the day
-        </Button>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button variant="outline" size="sm" className="h-8 text-xs" disabled={busy || generating} onClick={() => fileRef.current?.click()}>
+            {busy ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Camera className="w-3.5 h-3.5 mr-1" />}
+            Add photo of the day
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs"
+            disabled={!noteForPhoto || generating || busy}
+            title={noteForPhoto ? 'Generate a photo from your note with AI' : 'Add a note first, then generate a photo from it'}
+            onClick={onGeneratePhoto}
+          >
+            {generating ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1" />}
+            Generate from note
+          </Button>
+        </div>
       )}
+      {genError && <p className="text-[10px] text-destructive">{genError}</p>}
 
       {/* Saved note shows as plain wrapping text; tap it to edit */}
       {!editingNote && (journal?.note ?? '') !== '' ? (

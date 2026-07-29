@@ -66,6 +66,25 @@ export const CATEGORY_META: Record<Category | typeof UNCATEGORISED | typeof TRAN
   Uncategorised: { icon: HelpCircle,    color: 'text-muted-foreground', bg: 'bg-muted',                           bar: 'bg-muted-foreground/40' },
 }
 
+// Committed = outgoings you can't easily walk away from (mortgage + council
+// tax, HMRC, loan/finance repayments, bills, insurance). Everything else —
+// subscriptions, lifestyle, transport, business — is discretionary: a choice.
+// Single source of truth; keep scripts/analyse.mjs's COMMITTED in step.
+export const COMMITTED_CATEGORIES = ['Housing', 'Tax', 'Debt', 'Utilities', 'Insurance'] as const
+
+export function isCommitted(category: string): boolean {
+  return (COMMITTED_CATEGORIES as readonly string[]).includes(category)
+}
+
+// Stable left-to-right ordering so a category sits in the same place every
+// month (committed block first, in the order above, then the rest).
+const DISCRETIONARY_ORDER = CATEGORIES.filter(c => c !== 'Income' && !isCommitted(c))
+const CATEGORY_ORDER = [...COMMITTED_CATEGORIES, ...DISCRETIONARY_ORDER, UNCATEGORISED, PAYOUT]
+export function categoryOrder(category: string): number {
+  const i = CATEGORY_ORDER.indexOf(category as (typeof CATEGORY_ORDER)[number])
+  return i === -1 ? CATEGORY_ORDER.length : i
+}
+
 export function isCategory(s: string): s is Category {
   return (CATEGORIES as readonly string[]).includes(s)
 }
