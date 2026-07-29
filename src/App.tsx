@@ -42,7 +42,8 @@ function SetupNotice() {
 {`VITE_SUPABASE_URL=https://<project-ref>.supabase.co
 VITE_SUPABASE_ANON_KEY=<anon key>
 VITE_ANTHROPIC_API_KEY=<optional, for "Coach me">
-VITE_VAPID_PUBLIC_KEY=<optional, for push notifications>`}
+VITE_VAPID_PUBLIC_KEY=<optional, for push notifications>
+GOOGLE_AI_API_KEY=<optional, server-side, for AI photo of the day>`}
         </pre>
         <p className="text-xs text-muted-foreground">
           Both values are in your Supabase project under Settings → API. See the
