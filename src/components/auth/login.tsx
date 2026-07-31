@@ -3,13 +3,21 @@ import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Loader2, Mail } from 'lucide-react'
 
-// Passwordless magic-link sign-in. Access is invite-only: the allowed_emails
-// trigger (migration 020) rejects signups for emails that aren't invited, and
-// that rejection surfaces here as a send error.
+// Passwordless sign-in. Access is invite-only: the allowed_emails trigger
+// (migration 020) rejects signups for emails that aren't invited, and that
+// rejection surfaces here as a send error.
+//
+// The email carries BOTH a magic link and a 6-digit code. The code is what
+// makes the installed PWA work: a magic link opens in the browser, whose
+// localStorage the standalone PWA can't see — so the session never reaches
+// the app. Typing the code verifies in-place instead (verifyOtp), keeping
+// the whole flow inside whichever context the user is actually in.
 export function Login() {
   const [email, setEmail] = useState('')
-  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [code, setCode] = useState('')
+  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'verifying' | 'error'>('idle')
   const [error, setError] = useState('')
+  const [codeError, setCodeError] = useState('')
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -26,7 +34,23 @@ export function Login() {
       setError(error.message)
     } else {
       setStatus('sent')
+      setCode('')
+      setCodeError('')
     }
+  }
+
+  const verify = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const token = code.trim()
+    if (token.length < 6 || status === 'verifying') return
+    setStatus('verifying')
+    setCodeError('')
+    const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token, type: 'email' })
+    if (error) {
+      setStatus('sent')
+      setCodeError(error.message.includes('expired') ? 'That code has expired — send a fresh one.' : 'Wrong code — check the email and try again.')
+    }
+    // on success onAuthStateChange fires and App swaps to the planner
   }
 
   return (
@@ -37,17 +61,40 @@ export function Login() {
           <p className="text-sm text-muted-foreground italic font-display">one day at a time</p>
         </div>
 
-        {status === 'sent' ? (
-          <div className="rounded-lg border bg-muted/40 px-4 py-6 text-center space-y-2">
+        {status === 'sent' || status === 'verifying' ? (
+          <div className="rounded-lg border bg-muted/40 px-4 py-6 text-center space-y-3">
             <Mail className="w-6 h-6 mx-auto text-primary" />
             <p className="text-sm font-medium">Check your email</p>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              We sent a sign-in link to <strong className="break-all">{email.trim()}</strong>.
-              Open it on this device to continue.
+              We sent a 6-digit code to <strong className="break-all">{email.trim()}</strong>.
+              Type it here to sign in on this device.
+            </p>
+            <form onSubmit={verify} className="space-y-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]*"
+                maxLength={6}
+                autoFocus
+                value={code}
+                onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="123456"
+                className="w-full h-12 rounded-md border border-input bg-background px-3 text-center text-xl tracking-[0.4em] font-medium shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              />
+              <Button type="submit" className="w-full h-11" disabled={code.trim().length < 6 || status === 'verifying'}>
+                {status === 'verifying'
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Signing in…</>
+                  : 'Sign in'}
+              </Button>
+              {codeError && <p className="text-xs text-destructive leading-relaxed">{codeError}</p>}
+            </form>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              The email link works too, but only in the browser — inside the installed app, use the code.
             </p>
             <button
               className="text-xs text-muted-foreground underline hover:text-foreground"
-              onClick={() => { setStatus('idle'); setEmail('') }}
+              onClick={() => { setStatus('idle'); setEmail(''); setCode('') }}
             >
               Use a different email
             </button>
@@ -55,7 +102,7 @@ export function Login() {
         ) : (
           <form onSubmit={send} className="space-y-3">
             <p className="text-sm text-muted-foreground text-center">
-              Sign in with a magic link. LifeFlow is invite-only.
+              We'll email you a sign-in code. LifeFlow is invite-only.
             </p>
             <input
               type="email"
@@ -69,7 +116,7 @@ export function Login() {
             <Button type="submit" className="w-full h-11" disabled={status === 'sending' || !email.trim()}>
               {status === 'sending'
                 ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending…</>
-                : 'Email me a sign-in link'}
+                : 'Email me a sign-in code'}
             </Button>
             {status === 'error' && (
               <p className="text-xs text-destructive text-center leading-relaxed">
