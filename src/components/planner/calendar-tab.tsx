@@ -59,7 +59,7 @@ export function CalendarTab({
   const [selected, setSelected] = useState(today)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<CalendarEntry | null>(null)
-  const [makingGif, setMakingGif] = useState(false)
+  const [gifOpen, setGifOpen] = useState(false)
 
   const goalById = useMemo(() => new Map(goals.map(g => [g.id, g])), [goals])
   const journalByDay = useMemo(() => new Map(journalDays.map(j => [j.day, j])), [journalDays])
@@ -141,26 +141,7 @@ export function CalendarTab({
       .slice(0, 12)
   }, [entries, today])
 
-  // Photos within the visible period, for the GIF
-  const photosInView = useMemo(() =>
-    visibleDays
-      .filter(d => view !== 'month' || isSameMonth(parseISO(d), month))
-      .map(d => journalByDay.get(d))
-      .filter((j): j is JournalDay => Boolean(j?.photo_data)),
-  [visibleDays, journalByDay, view, month])
-
-  const exportGif = async () => {
-    setMakingGif(true)
-    try {
-      const blob = await makeGif(photosInView.map(j => j.photo_data))
-      const label = view === 'month' ? format(month, 'yyyy-MM') : visibleDays[0]
-      await shareOrDownload(blob, `lifeflow-${label}.gif`)
-    } catch (e) {
-      console.error('GIF export failed:', e)
-    } finally {
-      setMakingGif(false)
-    }
-  }
+  const totalPhotos = useMemo(() => journalDays.filter(j => j.photo_data).length, [journalDays])
 
   const openCreate = () => { setEditing(null); setDialogOpen(true) }
   const openEdit = (entry: CalendarEntry) => { setEditing(entry); setDialogOpen(true) }
@@ -173,9 +154,9 @@ export function CalendarTab({
           <p className="text-sm text-muted-foreground hidden sm:block">Goal wins, memories, and everything coming up</p>
         </div>
         <div className="flex items-center gap-2">
-          {photosInView.length >= 2 && (
-            <Button variant="outline" size="sm" onClick={exportGif} disabled={makingGif} title={`GIF of ${photosInView.length} photos (0.2s each)`}>
-              {makingGif ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Film className="w-4 h-4 mr-1" />}
+          {totalPhotos >= 2 && (
+            <Button variant="outline" size="sm" onClick={() => setGifOpen(true)} title="Make a GIF of your photo diary">
+              <Film className="w-4 h-4 mr-1" />
               GIF
             </Button>
           )}
@@ -192,6 +173,14 @@ export function CalendarTab({
           setMonth(startOfMonth(parseISO(date)))
           setWindowStart(dateKey(startOfWeek(parseISO(date), { weekStartsOn: 1 })))
         }}
+      />
+
+      <GifDialog
+        open={gifOpen}
+        onOpenChange={setGifOpen}
+        journalDays={journalDays}
+        selectedDay={selected}
+        month={month}
       />
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-4 items-start">
@@ -829,6 +818,113 @@ function EntryFormDialog({ open, onOpenChange, entry, defaultDate, onSave }: {
               {saving ? 'Saving…' : entry ? 'Save changes' : 'Add to calendar'}
             </Button>
           </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// Range picker for the photo-diary GIF: week / month / year, or any two dates.
+type GifRange = 'week' | 'month' | 'year' | 'custom'
+
+function GifDialog({ open, onOpenChange, journalDays, selectedDay, month }: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  journalDays: JournalDay[]
+  selectedDay: string
+  month: Date
+}) {
+  const [range, setRange] = useState<GifRange>('month')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const boundsFor = (r: GifRange): [string, string] => {
+    if (r === 'week') {
+      const s = startOfWeek(parseISO(selectedDay), { weekStartsOn: 1 })
+      return [dateKey(s), dateKey(addDays(s, 6))]
+    }
+    if (r === 'month') return [dateKey(startOfMonth(month)), dateKey(endOfMonth(month))]
+    if (r === 'year') return [`${month.getFullYear()}-01-01`, `${month.getFullYear()}-12-31`]
+    return [from || '0000-01-01', to || '9999-12-31']
+  }
+  const countIn = ([a, b]: [string, string]) =>
+    journalDays.filter(j => j.photo_data && j.day >= a && j.day <= b).length
+
+  const bounds = boundsFor(range)
+  const photos = journalDays
+    .filter(j => j.photo_data && j.day >= bounds[0] && j.day <= bounds[1])
+    .sort((a, b) => a.day.localeCompare(b.day))
+
+  const options: { key: GifRange; label: string; hint: string }[] = [
+    { key: 'week', label: 'Week', hint: format(startOfWeek(parseISO(selectedDay), { weekStartsOn: 1 }), 'd MMM') },
+    { key: 'month', label: 'Month', hint: format(month, 'MMM yyyy') },
+    { key: 'year', label: 'Year', hint: format(month, 'yyyy') },
+    { key: 'custom', label: 'Date range', hint: 'pick dates' },
+  ]
+
+  const create = async () => {
+    if (photos.length < 2 || busy) return
+    setBusy(true)
+    try {
+      const blob = await makeGif(photos.map(j => j.photo_data))
+      await shareOrDownload(blob, `lifeflow-${bounds[0]}-to-${photos[photos.length - 1].day}.gif`)
+      onOpenChange(false)
+    } catch (e) {
+      console.error('GIF export failed:', e)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Make a GIF</DialogTitle>
+          <DialogDescription>One frame per photo of the day, 0.2s each.</DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-2">
+          {options.map(o => {
+            const n = o.key === 'custom' ? null : countIn(boundsFor(o.key))
+            const active = range === o.key
+            return (
+              <button
+                key={o.key}
+                onClick={() => setRange(o.key)}
+                className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                  active ? 'border-primary bg-primary/5' : 'border-border hover:border-foreground/30'
+                }`}
+              >
+                <span className="block text-sm font-medium">{o.label}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {o.hint}{n !== null && ` · ${n} photo${n === 1 ? '' : 's'}`}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+        {range === 'custom' && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5 min-w-0">
+              <Label>From</Label>
+              <DatePicker value={from} onChange={setFrom} />
+            </div>
+            <div className="space-y-1.5 min-w-0">
+              <Label>To</Label>
+              <DatePicker value={to} onChange={setTo} min={from || undefined} />
+            </div>
+          </div>
+        )}
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <p className="text-xs text-muted-foreground">
+            {photos.length < 2
+              ? `${photos.length} photo${photos.length === 1 ? '' : 's'} in this range — need at least 2.`
+              : `${photos.length} photos · about ${(photos.length * 0.2).toFixed(1)}s`}
+          </p>
+          <Button onClick={create} disabled={photos.length < 2 || busy}>
+            {busy ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Making…</> : <><Film className="w-4 h-4 mr-1" /> Create</>}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
