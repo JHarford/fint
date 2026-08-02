@@ -7,7 +7,7 @@ import { Loader2, Mail } from 'lucide-react'
 // (migration 020) rejects signups for emails that aren't invited, and that
 // rejection surfaces here as a send error.
 //
-// The email carries BOTH a magic link and a 6-digit code. The code is what
+// The email carries BOTH a magic link and a one-time code. The code is what
 // makes the installed PWA work: a magic link opens in the browser, whose
 // localStorage the standalone PWA can't see — so the session never reaches
 // the app. Typing the code verifies in-place instead (verifyOtp), keeping
@@ -66,7 +66,7 @@ export function Login() {
             <Mail className="w-6 h-6 mx-auto text-primary" />
             <p className="text-sm font-medium">Check your email</p>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              We sent a 6-digit code to <strong className="break-all">{email.trim()}</strong>.
+              We sent a sign-in code to <strong className="break-all">{email.trim()}</strong>.
               Type it here to sign in on this device.
             </p>
             <form onSubmit={verify} className="space-y-2">
@@ -75,12 +75,12 @@ export function Login() {
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 pattern="[0-9]*"
-                maxLength={6}
+                maxLength={10}
                 autoFocus
                 value={code}
                 onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
-                placeholder="123456"
-                className="w-full h-12 rounded-md border border-input bg-background px-3 text-center text-xl tracking-[0.4em] font-medium shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                placeholder="12345678"
+                className="w-full h-12 rounded-md border border-input bg-background px-3 text-center text-xl tracking-[0.3em] font-medium shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               />
               <Button type="submit" className="w-full h-11" disabled={code.trim().length < 6 || status === 'verifying'}>
                 {status === 'verifying'
