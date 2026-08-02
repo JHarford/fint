@@ -151,3 +151,11 @@ export function heatmapRangeLabel(weeks = 16): string {
 export function daysSinceStart(goal: Goal): number {
   return Math.max(0, differenceInCalendarDays(new Date(), parseISO(goal.start_date)))
 }
+
+// Cell fill for count-per-day habits: a fraction of the daily target renders
+// as that fraction of the goal colour (very light at 1/5, solid at 5/5), so
+// heat grids show HOW MUCH water, not just "touched it".
+export function heatCellAlpha(value: number, dailyTarget: number): number {
+  const frac = Math.max(0, Math.min(1, value / dailyTarget))
+  return frac >= 1 ? 1 : 0.12 + frac * 0.6
+}

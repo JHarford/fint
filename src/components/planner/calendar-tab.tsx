@@ -23,6 +23,7 @@ import { makeGif, shareOrDownload } from '@/lib/gif'
 import { GOAL_ICONS, goalColor } from './goal-meta'
 import { QuickAdd } from './quick-add'
 import { ChoresOnDay } from './chores-card'
+import { GoalsOnDay } from './goals-on-day'
 import { CaloriesOnDay } from '@/components/calpal/calpal-today-card'
 
 const ENTRY_META: Record<CalendarEntryType, { icon: LucideIcon; label: string; text: string; dot: string }> = {
@@ -278,6 +279,7 @@ export function CalendarTab({
             )}
 
             <CaloriesOnDay day={selected} />
+            <GoalsOnDay day={selected} />
             <ChoresOnDay day={selected} />
 
             {selectedEntries.length > 0 ? (

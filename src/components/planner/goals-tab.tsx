@@ -4,9 +4,11 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Flame, Pause, Pencil, Play, Plus, Trash2, Trophy } from 'lucide-react'
+import { Flame, Loader2, Pause, Pencil, Play, Plus, Share2, Trash2, Trophy } from 'lucide-react'
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { Goal, GoalEntry } from '@/types'
+import { shareOrDownload } from '@/lib/gif'
+import { renderGoalCard } from '@/lib/share-card'
 import {
   bestStreak, currentStreak, daysSinceStart, entriesForGoal, heatmapRangeLabel,
   moneySaved, nextMilestone, personalBest, slipCount, targetProgress,
@@ -122,6 +124,18 @@ interface GoalCardProps {
 function GoalCard({ goal, goalEntries, paused = false, onEdit, onTogglePause, onDelete }: GoalCardProps) {
   const color = goalColor(goal.color)
   const Icon = GOAL_ICONS[goal.icon] ?? GOAL_ICONS.target
+  const [sharing, setSharing] = useState(false)
+
+  const share = async () => {
+    if (sharing) return
+    setSharing(true)
+    try {
+      const blob = await renderGoalCard(goal, goalEntries)
+      await shareOrDownload(blob, `lifeflow-${goal.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`)
+    } finally {
+      setSharing(false)
+    }
+  }
 
   return (
     <Card className={`py-4 px-4 gap-3 ${paused ? 'opacity-60' : ''}`}>
@@ -139,6 +153,9 @@ function GoalCard({ goal, goalEntries, paused = false, onEdit, onTogglePause, on
           </p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Share this card" onClick={share} disabled={sharing}>
+            {sharing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Share2 className="w-3.5 h-3.5" />}
+          </Button>
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title={paused ? 'Resume' : 'Pause'} onClick={onTogglePause}>
             {paused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
           </Button>

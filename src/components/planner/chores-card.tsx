@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { differenceInCalendarDays, parseISO } from 'date-fns'
+import { differenceInCalendarDays, format, parseISO } from 'date-fns'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -125,21 +125,36 @@ export function ChoresCard() {
 
 // Compact read-only list of jobs done on a given day, for the calendar's
 // day detail panel.
+// Editable for any past day: every chore shows as a chip, tap to tag/untag it
+// for that day — so "did the bins last Friday" can be recorded after the fact.
 export function ChoresOnDay({ day }: { day: string }) {
-  const { chores, logs } = useChores()
-  const done = logs.filter(l => l.date === day)
-  if (done.length === 0) return null
-  const nameById = new Map(chores.map(c => [c.id, c.name]))
+  const { chores, logs, toggle } = useChores()
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const editable = day <= today
+  const doneIds = new Set(logs.filter(l => l.date === day).map(l => l.chore_id))
+  if (chores.length === 0 || (!editable && doneIds.size === 0)) return null
   return (
     <div className="space-y-1.5">
       <p className="text-[10px] uppercase tracking-wide text-muted-foreground">House jobs</p>
       <div className="flex flex-wrap gap-1.5">
-        {done.map(l => (
-          <span key={l.id} className="inline-flex items-center gap-1 text-xs bg-muted rounded-full px-2 py-0.5">
-            <Check className="w-3 h-3 text-chart-3" />
-            {nameById.get(l.chore_id) ?? '?'}
-          </span>
-        ))}
+        {chores.filter(c => editable || doneIds.has(c.id)).map(c => {
+          const done = doneIds.has(c.id)
+          return (
+            <button
+              key={c.id}
+              disabled={!editable}
+              onClick={() => toggle(c.id, day)}
+              className={`inline-flex items-center gap-1 text-xs rounded-full px-2 py-1 border transition-colors ${
+                done
+                  ? 'bg-muted border-transparent'
+                  : 'border-border text-muted-foreground hover:border-foreground/40'
+              }`}
+            >
+              {done && <Check className="w-3 h-3 text-chart-3" />}
+              {c.name}
+            </button>
+          )
+        })}
       </div>
     </div>
   )
