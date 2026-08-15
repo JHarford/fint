@@ -85,7 +85,8 @@ const NAV_ITEMS = [
 
 function getStoredMonths(): number {
   try {
-    const v = localStorage.getItem('fint-forecast-months')
+    // 'fint-forecast-months' is the pre-rename key; fall back so existing installs keep their setting
+    const v = localStorage.getItem('lifeflow-forecast-months') ?? localStorage.getItem('fint-forecast-months')
     return v ? parseInt(v, 10) || 12 : 12
   } catch { return 12 }
 }
@@ -152,7 +153,7 @@ function AppInner() {
     const n = parseInt(val, 10)
     if (n > 0 && n <= 120) {
       setForecastMonths(n)
-      localStorage.setItem('fint-forecast-months', String(n))
+      localStorage.setItem('lifeflow-forecast-months', String(n))
     }
   }
 

@@ -24,7 +24,7 @@ export function parseCsv(text: string): CsvRow[] {
 // Barclaycard credit-card export: no header, 7 columns
 // 0=date "DD MMM YY", 1=memo, 2=card type, 3=cardholder, 4=bank category,
 // 5=credit (negative, payments), 6=debit (positive, purchases).
-// Already in Fint's convention (purchases positive = money out of card).
+// Already in LifeFlow's convention (purchases positive = money out of card).
 function parseBarclaycardCsv(text: string): CsvRow[] {
   const lines = text.trim().split('\n')
   const rows: CsvRow[] = []
@@ -93,7 +93,7 @@ function parseHeaderedCsv(text: string): CsvRow[] {
       number: rowHash(date, flippedAmount, memo),
       date,
       account: accountIdx >= 0 ? cols[accountIdx]?.trim() || '' : '',
-      // Banks use negative=money out; Fint uses positive=money out, negative=money in
+      // Banks use negative=money out; LifeFlow uses positive=money out, negative=money in
       // (matches recurring_items convention). Flip on import.
       amount: flippedAmount,
       category: categoryIdx >= 0 ? cols[categoryIdx]?.trim() || '' : '',

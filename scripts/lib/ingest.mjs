@@ -66,7 +66,7 @@ function normalizeDate(dateStr) {
 }
 
 // Headered Barclays export: Number,Date,Account,Amount,Subcategory,Memo
-// Banks use negative = money out; Fint flips so positive = money out.
+// Banks use negative = money out; LifeFlow flips so positive = money out.
 export function parseHeaderedCsv(text) {
   const lines = text.trim().split('\n')
   if (lines.length < 2) return []

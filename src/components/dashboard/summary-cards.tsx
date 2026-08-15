@@ -307,7 +307,8 @@ type CardKey = string // source-{id}, debt-{id}, networth
 
 function getHiddenCards(): Set<string> {
   try {
-    const stored = localStorage.getItem('fint-hidden-cards')
+    // 'fint-hidden-cards' is the pre-rename key; fall back so existing installs keep their setting
+    const stored = localStorage.getItem('lifeflow-hidden-cards') ?? localStorage.getItem('fint-hidden-cards')
     return stored ? new Set(JSON.parse(stored)) : new Set()
   } catch {
     return new Set()
@@ -315,7 +316,7 @@ function getHiddenCards(): Set<string> {
 }
 
 function saveHiddenCards(hidden: Set<string>) {
-  localStorage.setItem('fint-hidden-cards', JSON.stringify([...hidden]))
+  localStorage.setItem('lifeflow-hidden-cards', JSON.stringify([...hidden]))
 }
 
 export function SummaryCards({ sources, balances, debts, recurringItems, assets: assetItems = [], forecastMonths = 12 }: SummaryCardsProps) {

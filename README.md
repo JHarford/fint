@@ -19,7 +19,7 @@ web app backed by Supabase.
 - **Calendar** — month view showing which goals you achieved each day,
   alongside birthdays (yearly recurring), events with optional times,
   reminders, and tasks. "Coming up" list for the next 60 days.
-- **Finance** — the original Fint dashboard: net worth, account forecasting,
+- **Finance** — the original finance dashboard: net worth, account forecasting,
   transaction categorisation, budgets, debts, and assets.
 - **External pushes** — a droplet/agent can insert calendar entries, coaching
   messages, and goal check-ins straight into Supabase (see `DROPLET.md`).

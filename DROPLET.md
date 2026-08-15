@@ -145,7 +145,7 @@ automatically when a send returns 404/410. Typical cron:
 
 ```cron
 # morning nudge at 08:00
-0 8 * * *  cd /path/to/fint && node droplet/send-push.mjs --title "Good morning" --body "Check in on today's goals" --tag checkin
+0 8 * * *  cd /path/to/lifeflow && node droplet/send-push.mjs --title "Good morning" --body "Check in on today's goals" --tag checkin
 ```
 
 Combine with section 4 to push the generated coach note:

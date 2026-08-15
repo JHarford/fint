@@ -1,6 +1,6 @@
 # Data import scripts
 
-Keep Fint's Supabase in sync with your bank statements.
+Keep LifeFlow's Supabase in sync with your bank statements.
 
 ## Daily workflow (the "drop folder")
 
@@ -76,7 +76,7 @@ biggest spend rows to eyeball. Audit mode never writes anything.
 
 ## Notes
 
-- **Sign convention:** banks use negative = money out; Fint flips this on import
+- **Sign convention:** banks use negative = money out; LifeFlow flips this on import
   so **positive = money out, negative = money in** (matches the rest of the app).
 - Categorisation uses the same rule-cache + Claude Haiku pass as the in-app CSV
   upload, so a CLI import and an in-app upload produce identical rows.

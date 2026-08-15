@@ -40,7 +40,7 @@ const today = new Date().toISOString().slice(0, 10)
 const thisMonth = today.slice(0, 7)
 
 // ── freshness ────────────────────────────────────────────────────────────────
-console.log('\n═══ Fint monthly analysis ═══\n')
+console.log('\n═══ LifeFlow monthly analysis ═══\n')
 let staleWarning = false
 for (const s of sources) {
   const rows = transactions.filter(t => t.source_id === s.id)

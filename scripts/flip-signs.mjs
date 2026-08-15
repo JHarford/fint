@@ -1,4 +1,4 @@
-// One-shot: flip the sign on existing transactions so they match Fint's
+// One-shot: flip the sign on existing transactions so they match LifeFlow's
 // internal convention (positive = expense, negative = income). Idempotent
 // per-row guard: only flips rows whose absolute value we haven't already moved.
 //

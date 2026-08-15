@@ -84,7 +84,7 @@ export function detectRecurringGroups(
     const variance = (Math.max(...amounts) - Math.min(...amounts)) / medianAmount
     // Income amounts swing wildly (salary + bonus + expense reimbursements +
     // tiny corrections from the same payer). Detect by checking if amounts are
-    // overwhelmingly negative (Fint convention: negative = money in).
+    // overwhelmingly negative (LifeFlow convention: negative = money in).
     const negCount = sorted.filter(t => t.amount < 0).length
     const isIncomeSide = negCount > sorted.length / 2
     const varianceCap = isIncomeSide ? 50 : 2

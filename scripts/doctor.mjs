@@ -47,7 +47,7 @@ const [transactions, sources, rules] = await Promise.all([
 const sourceById = new Map(sources.map(s => [s.id, s]))
 const sourceIdByName = new Map(sources.map(s => [s.name.toLowerCase(), s.id]))
 
-console.log(`\n═══ Fint data doctor ${FIX ? '(FIX MODE)' : '(audit only — run with --fix to repair)'} ═══`)
+console.log(`\n═══ LifeFlow data doctor ${FIX ? '(FIX MODE)' : '(audit only — run with --fix to repair)'} ═══`)
 console.log(`\n${transactions.length} transactions across ${sources.length} sources:`)
 for (const s of sources) {
   const rows = transactions.filter(t => t.source_id === s.id)
